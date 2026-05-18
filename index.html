@@ -819,51 +819,42 @@ function renderErgebnis() {
   document.getElementById('resultMeta').innerHTML =
     `Anwesende Mitglieder: <em>${total}</em> &nbsp;·&nbsp; Kandidaten: <em>${kandidaten.length}</em><br>
      <small style="color:var(--muted)">
-       Spalten zeigen <strong>Rohstimmen</strong> (Summe je Zeile = ${total}).
-       Für die Schwellenwertprüfung nach Regel 6 werden Vakanz-Stimmen
-       bei Gast und Verstärkung mitgezählt (Kaskade) — dies geschieht intern
-       und ist in der Empfehlung bereits berücksichtigt.
-       Prozentzahlen: Gesamt / eigene Stimmgruppe. Zur Leitung werden nur
-       Empfehlungen mitgeteilt (Regel 5), keine Prozentzahlen.
+       Rohstimmen (Summe je Zeile = ${total}). Prozentangaben erscheinen in der
+       für die Empfehlung ausschlaggebenden Spalte (Ges. / SG); bei Gast und
+       Verstärkung kaskadiert gemäß Regel 6. Zur Leitung werden nur Empfehlungen
+       mitgeteilt (Regel 5), keine Prozentzahlen.
      </small>`;
 
   const rows = ergebnisse.map(e => {
-    const { roh: r, nGesamt, nSG } = e;
+    const { roh: r, nGesamt, nSG, ergebnis } = e;
     const k = e.kandidat;
-    const pct = (n, d) => d > 0 ? `<div style="font-size:0.72rem;color:var(--muted)">${(n/d*100).toFixed(0)} % / ${nSG > 0 ? ((() => {
-      // SG-Anteil für die relevante Kategorie
-      const sgN = k === e.kandidat ? e.sg : 0;
-      return '–';
-    })()) : '–'}</div>` : '';
 
-    // Prozentwerte direkt aus dem Ergebnis-Objekt
-    const pV  = nGesamt > 0 ? (r.vV / nGesamt * 100).toFixed(0) + ' %' : '–';
-    const pVsg= nSG     > 0 ? (e.sg.vakanz / nSG * 100).toFixed(0) + ' %' : '–';
-    const pG  = nGesamt > 0 ? (e.eff.gast  / nGesamt * 100).toFixed(0) + ' %' : '–';
-    const pGsg= nSG     > 0 ? (e.sg.gast   / nSG * 100).toFixed(0) + ' %' : '–';
-    const pS  = nGesamt > 0 ? (e.eff.verst / nGesamt * 100).toFixed(0) + ' %' : '–';
-    const pSsg= nSG     > 0 ? (e.sg.verst  / nSG * 100).toFixed(0) + ' %' : '–';
+    // Prozentwert (Ges. / SG) nur für die relevante Kategorie, kaskadiert
+    const pct = (n, sg) => {
+      const pg  = nGesamt > 0 ? (n    / nGesamt * 100).toFixed(0) + ' %' : '–';
+      const psg = nSG     > 0 ? (sg   / nSG     * 100).toFixed(0) + ' %' : '–';
+      return `<div style="font-size:0.72rem;color:var(--muted)">${pg} / ${psg}</div>`;
+    };
+
+    const pVakanz = ergebnis === 'Vakanz'      ? pct(r.vV,        e.sg.vakanz) : '';
+    const pGast   = ergebnis === 'Gast'        ? pct(e.eff.gast,  e.sg.gast)   : '';
+    const pVerst  = ergebnis === 'Verstärkung' ? pct(e.eff.verst, e.sg.verst)  : '';
 
     return `
       <tr>
         <td><strong>${k.name}</strong></td>
         <td>${badge(k.stimmgruppe)}</td>
         <td class="center">
-          <strong style="color:#3a4060">${r.vV}</strong>
-          <div style="font-size:0.72rem;color:var(--muted)">${pV} / ${pVsg}</div>
+          <strong style="color:#3a4060">${r.vV}</strong>${pVakanz}
         </td>
         <td class="center">
-          <strong style="color:#2a5840">${r.vG}</strong>
+          <strong style="color:#2a5840">${r.vG}</strong>${pGast}
         </td>
         <td class="center">
-          <strong style="color:#7c5a10">${r.vS}</strong>
+          <strong style="color:#7c5a10">${r.vS}</strong>${pVerst}
         </td>
         <td class="center">
           <strong style="color:#6a1c1c">${r.vN}</strong>
-        </td>
-        <td class="center" style="font-size:0.8rem;color:var(--muted)">
-          ${pG} / ${pGsg}<br>
-          <span style="font-size:0.68rem">(inkl. Kaskade)</span>
         </td>
         <td>${ergebnisTag(e)}</td>
       </tr>`;
@@ -879,12 +870,99 @@ function renderErgebnis() {
           <th class="cat-g" style="text-align:center">Gast</th>
           <th class="cat-s" style="text-align:center">Verstärk.</th>
           <th class="cat-n" style="text-align:center">Nein</th>
-          <th style="text-align:center;background:#4a4d54">Eff. Gast %<div style="font-size:0.68rem;font-weight:400;opacity:0.85">Ges. / SG</div></th>
           <th>Empfehlung</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table>
+    <div id="ergebnisBeschreibungen" style="margin-top:1.5rem"></div>`;
+
+  // ── Erläuterungstexte ─────────────────────────────────────────────
+  document.getElementById('ergebnisBeschreibungen').innerHTML =
+    ergebnisse.map(e => {
+      const col = { 'Vakanz':'#3a4060','Gast':'#2a5840','Verstärkung':'#7c5a10','Nein':'#6a1c1c' };
+      return `
+        <div style="border-left:3px solid ${col[e.ergebnis]};padding:0.6rem 1rem;
+                    margin-bottom:0.75rem;background:#faf9f7;border-radius:0 4px 4px 0;
+                    font-size:0.88rem;line-height:1.6;">
+          <strong>${e.kandidat.name}</strong> &nbsp;${badge(e.kandidat.stimmgruppe)}<br>
+          ${generiereText(e)}
+        </div>`;
+    }).join('');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ERLÄUTERUNGSTEXT PRO KANDIDAT
+// ════════════════════════════════════════════════════════════════════════
+
+/** Prüft, welcher Weg (A oder B) erfüllt ist, und gibt 'A', 'B' oder null zurück. */
+function bestehtWeg(eff, sgEff, nGesamt, nSG) {
+  if (nGesamt === 0) return null;
+  const rG  = eff  / nGesamt;
+  const rSG = nSG > 0 ? sgEff / nSG : 0;
+  if (rG >= 2/3 && rSG >= 0.51) return 'A';
+  if (rG >  0.5 && rSG >= 0.75) return 'B';
+  return null;
+}
+
+function generiereText(e) {
+  const { roh: r, eff, sg, nGesamt, nSG, ergebnis, kandidat: k } = e;
+  const pct = (n, d) => d > 0 ? Math.round(n / d * 100) + '\u202f%' : '–';
+  const sg_label = `${nSG} aus dem ${k.stimmgruppe}`;
+
+  // ── Fall: Abgelehnt ───────────────────────────────────────────────
+  if (ergebnis === 'Nein') {
+    const maxEff = Math.max(r.vV, eff.gast, eff.verst);
+    const besteKat = maxEff === r.vV ? 'Vakanz'
+                   : maxEff === eff.gast ? 'Gast' : 'Verstärkung';
+    const besteEff = maxEff === r.vV ? r.vV : maxEff === eff.gast ? eff.gast : eff.verst;
+    const besteSG  = maxEff === r.vV ? sg.vakanz : maxEff === eff.gast ? sg.gast : sg.verst;
+    return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) stimmten ` +
+      `${r.vV}× Vakanz, ${r.vG}× Gast, ${r.vS}× Verstärkung und ${r.vN}× Nein. ` +
+      `Auch unter Berücksichtigung der Stimmenkaskade (Regel\u00a06) wurde für keine ` +
+      `Kategorie eine der erforderlichen Mehrheiten erreicht ` +
+      `(beste effektive Quote: ${pct(besteEff, nGesamt)}\u202fges. / ` +
+      `${pct(besteSG, nSG)}\u202fSG für ${besteKat}). ` +
+      `<strong>Empfehlung: Abgelehnt.</strong>`;
+  }
+
+  // ── Einleitungssätze für hierarchische Fälle ──────────────────────
+  let einleitung = '';
+  if (ergebnis === 'Gast') {
+    einleitung = `Für eine Vakanz-Einstellung reichte es nicht aus ` +
+      `(${pct(r.vV, nGesamt)}\u202fges. / ${pct(sg.vakanz, nSG)}\u202fSG). `;
+  } else if (ergebnis === 'Verstärkung') {
+    einleitung = `Weder Vakanz (${pct(r.vV, nGesamt)}\u202fges. / ${pct(sg.vakanz, nSG)}\u202fSG) ` +
+      `noch Gast (${pct(eff.gast, nGesamt)}\u202fges. / ${pct(sg.gast, nSG)}\u202fSG) ` +
+      `wurden erreicht. `;
+  }
+
+  // ── Effektive Werte für die erreichte Kategorie ───────────────────
+  const effN  = ergebnis === 'Vakanz' ? r.vV      : ergebnis === 'Gast' ? eff.gast  : eff.verst;
+  const sgEffN= ergebnis === 'Vakanz' ? sg.vakanz  : ergebnis === 'Gast' ? sg.gast   : sg.verst;
+  const kat_label = ergebnis === 'Vakanz'
+    ? 'Vakanz'
+    : ergebnis === 'Gast'
+      ? `Gast (Vakanz\u202f+\u202fGast kaskadiert)`
+      : `Verstärkung (Vakanz\u202f+\u202fGast\u202f+\u202fVerstärkung kaskadiert)`;
+
+  const weg  = bestehtWeg(effN, sgEffN, nGesamt, nSG);
+  const wegText = weg === 'A'
+    ? `Die 2/3-Mehrheit (${pct(effN, nGesamt)}\u202fges.) und das 51\u202f%-Quorum der ` +
+      `Stimmgruppe (${pct(sgEffN, nSG)}\u202fSG) wurden erfüllt\u202f(Weg\u202fA, Regel\u202f2).`
+    : `Die einfache Mehrheit (${pct(effN, nGesamt)}\u202fges.) und das ¾-Quorum der ` +
+      `Stimmgruppe (${pct(sgEffN, nSG)}\u202fSG) wurden erfüllt\u202f(Weg\u202fB, Regel\u202f3).`;
+
+  // ── Regel-4-Zusatz ────────────────────────────────────────────────
+  const regel4Text = e.regel4Zurueck
+    ? ` Ein anderer Kandidat derselben Stimmgruppe erreichte dieselbe Kategorie mit mehr Stimmen — ` +
+      `${k.name} wird daher zurückgestellt\u202f(Regel\u202f4).`
+    : '';
+
+  return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) entfielen ` +
+    `${effN} Stimmen auf ${kat_label}. ` +
+    einleitung + wegText + regel4Text +
+    ` <strong>Empfehlung: ${e.regel4Zurueck ? ergebnis + ' – zurückgestellt' : ergebnis}.</strong>`;
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -894,24 +972,17 @@ function exportCSV() {
   const ergebnisse = anwendeRegel4(berechneAlleErgebnisse());
   const header = [
     'Name','Stimmgruppe',
-    'Vakanz (roh)','Gast (roh)','Verstärkung (roh)','Nein',
-    'Gast (eff.)','Verstärkung (eff.)',
-    '% Vakanz Ges.','% Vakanz SG',
-    '% Gast Ges.','% Gast SG',
-    '% Verst. Ges.','% Verst. SG',
-    'Empfehlung'
+    'Vakanz','Gast','Verstärkung','Nein',
+    'Empfehlung','Erläuterung'
   ];
   const rows = ergebnisse.map(e => {
-    const { roh: r, eff, pctGes: pg, pctSG: ps } = e;
-    const empf = e.regel4Zurueck ? e.ergebnis + ' (Regel 4)' : e.ergebnis;
+    const { roh: r } = e;
+    const empf = e.regel4Zurueck ? e.ergebnis + ' (zurückgestellt, Regel 4)' : e.ergebnis;
+    const text = generiereText(e).replace(/<[^>]+>/g, ''); // HTML-Tags entfernen
     return [
       e.kandidat.name, e.kandidat.stimmgruppe,
       r.vV, r.vG, r.vS, r.vN,
-      eff.gast, eff.verst,
-      pg.vakanz, ps.vakanz,
-      pg.gast,   ps.gast,
-      pg.verst,  ps.verst,
-      empf
+      empf, `"${text.replace(/"/g, '""')}"`
     ].join(';');
   });
   const csv  = csvBom() + [header.join(';'), ...rows].join('\r\n');
