@@ -397,7 +397,9 @@ const SUPABASE_KEY = 'sb_publishable_MJUP_gLZccCY-UUlF1p7oQ_JB1hta_g';
 const ADMIN_PASS   = 'kl@usdieter240405';
 
 const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false }
+});
 
 // ════════════════════════════════════════════════════════════════════════
 // STATE
