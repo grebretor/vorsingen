@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<!--
+  ══════════════════════════════════════════════════════════════════════════
+  VORSINGEN ONLINE – RIAS Kammerchor Berlin
+  Jedes Mitglied stimmt auf seinem eigenen Gerät ab.
+  ══════════════════════════════════════════════════════════════════════════
+
+  SUPABASE-SETUP: Folgende 5 Tabellen im SQL-Editor anlegen:
+  ──────────────────────────────────────────────────────────
+  create table v_sitzungen (
+    id          uuid primary key default gen_random_uuid(),
+    erstellt_am timestamptz default now(),
+    datum       date default current_date,
+    status      text default 'vorbereitung'  -- 'vorbereitung'|'offen'|'geschlossen'
+  );
+  create table v_kandidaten (
+    id          uuid primary key default gen_random_uuid(),
+    sitzung_id  uuid references v_sitzungen(id) on delete cascade,
+    name        text not null,
+    stimmgruppe text not null,
+    reihenfolge int  default 0
+  );
+  create table v_anwesend (
+    id          uuid primary key default gen_random_uuid(),
+    sitzung_id  uuid references v_sitzungen(id) on delete cascade,
+    mitglied_id uuid references mitglieder(id)
+  );
+  create table v_stimmen (
+    id          uuid primary key default gen_random_uuid(),
+    sitzung_id  uuid references v_sitzungen(id) on delete cascade,
+    kandidat_id uuid references v_kandidaten(id) on delete cascade,
+    kategorie   text not null,
+    stimmgruppe text not null  -- Stimmgruppe des Abstimmenden (anonym, kein Personenbezug)
+  );
+  create table v_hat_abgestimmt (
+    id          uuid primary key default gen_random_uuid(),
+    sitzung_id  uuid references v_sitzungen(id) on delete cascade,
+    mitglied_id uuid references mitglieder(id)
+    -- Nur: wer hat abgestimmt, nicht was
+  );
+  ──────────────────────────────────────────────────────────
+-->
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vorsingen Online – RIAS Kammerchor Berlin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --ink:    #1b1f24;
+      --paper:  #f4f3f1;
+      --card:   #ffffff;
+      --blue:   #646870;
+      --blue2:  #4a4d54;
+      --gold:   #a07830;
+      --muted:  #767a82;
+      --border: #dcdad6;
+      --s-bg: #fce8e8; --s-col: #8b1c1c;
+      --a-bg: #e8f2ec; --a-col: #1a5230;
+      --t-bg: #e8eaf4; --t-col: #2a3480;
+      --b-bg: #f5efe2; --b-col: #6b4010;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Source Sans 3', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+    /* ── HEADER ──────────────────────────────────────────────────────── */
+    header { background: var(--blue); color: white; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; box-shadow: 0 2px 12px rgba(0,0,0,0.18); border-bottom: 3px solid var(--gold); }
+    header .logo { font-family: 'Playfair Display', serif; font-size: 1rem; letter-spacing: 0.04em; line-height: 1.3; }
+    header .logo span { display: block; font-size: 0.68rem; font-family: 'Source Sans 3', sans-serif; font-weight: 300; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; }
+    header .role-badge { margin-left: auto; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: rgba(255,255,255,0.15); padding: 0.25rem 0.75rem; border-radius: 3px; opacity: 0; transition: opacity 0.3s; }
+    header .role-badge.visible { opacity: 1; }
+
+    /* ── LAYOUT ──────────────────────────────────────────────────────── */
+    .container { max-width: 760px; margin: 1.5rem auto; padding: 0 1.25rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 1.5rem; margin-bottom: 1.25rem; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+    .card-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--blue); margin-bottom: 1.1rem; padding-bottom: 0.65rem; border-bottom: 1px solid var(--border); }
+
+    /* ── SCREEN VISIBILITY ───────────────────────────────────────────── */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ── BUTTONS ─────────────────────────────────────────────────────── */
+    .btn { padding: 0.6rem 1.3rem; border: none; border-radius: 4px; cursor: pointer; font-family: 'Source Sans 3', sans-serif; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.03em; transition: background 0.15s, opacity 0.15s; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--blue); color: white; }
+    .btn-primary:not(:disabled):hover { background: var(--blue2); }
+    .btn-outline { background: transparent; color: var(--blue); border: 1.5px solid var(--blue); }
+    .btn-outline:hover { background: #eef3fa; }
+    .btn-ghost { background: var(--paper); color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: #ede9e0; }
+    .btn-danger { background: #7c1f1f; color: white; }
+    .btn-danger:hover { background: #9c2525; }
+    .btn-lg { width: 100%; padding: 1rem; font-size: 1.05rem; text-align: center; border-radius: 6px; }
+    .btn-sm { padding: 0.25rem 0.7rem; font-size: 0.8rem; }
+    .btn-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 1.1rem; flex-wrap: wrap; }
+    .btn-row .right { display: flex; gap: 0.6rem; }
+
+    /* ── FORMS ───────────────────────────────────────────────────────── */
+    .form-row { display: flex; gap: 0.75rem; align-items: flex-end; margin-bottom: 0.9rem; }
+    .form-group { flex: 1; }
+    .form-group.wide { flex: 2; }
+    .form-group label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.3rem; }
+    input[type="text"], input[type="password"], select { width: 100%; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 4px; font-family: 'Source Sans 3', sans-serif; font-size: 0.95rem; background: white; color: var(--ink); transition: border-color 0.15s; }
+    input:focus, select:focus { outline: none; border-color: var(--blue); }
+
+    /* ── BADGE ───────────────────────────────────────────────────────── */
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; }
+    .badge-S { background: var(--s-bg); color: var(--s-col); }
+    .badge-A { background: var(--a-bg); color: var(--a-col); }
+    .badge-T { background: var(--t-bg); color: var(--t-col); }
+    .badge-B { background: var(--b-bg); color: var(--b-col); }
+
+    /* ── TABLE ───────────────────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    thead th { background: var(--blue); color: white; padding: 0.5rem 0.8rem; text-align: left; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; }
+    tbody td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #f0ece3; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #faf8f3; }
+    td.center { text-align: center; }
+
+    /* ── ALERT ───────────────────────────────────────────────────────── */
+    .alert { padding: 0.7rem 1rem; border-radius: 4px; font-size: 0.88rem; margin-bottom: 1rem; line-height: 1.5; }
+    .alert-info  { background: #ededee; color: #3a3d45; border-left: 3px solid var(--blue); }
+    .alert-ok    { background: #e8f2ec; color: #1a5230; border-left: 3px solid #2a6040; }
+    .alert-warn  { background: #fff8e6; color: #7c5800; border-left: 3px solid var(--gold); }
+    .alert-error { background: #fce8e8; color: #8b1a1a; border-left: 3px solid #7c1f1f; }
+
+    /* ── STARTSEITE ──────────────────────────────────────────────────── */
+    .start-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem; }
+    .start-card { background: white; border: 1.5px solid var(--border); border-radius: 8px; padding: 1.75rem 1.25rem; text-align: center; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+    .start-card:hover { border-color: var(--blue); box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+    .start-card .icon { font-size: 2rem; margin-bottom: 0.75rem; }
+    .start-card h3 { font-family: 'Playfair Display', serif; font-size: 1rem; color: var(--blue); margin-bottom: 0.4rem; }
+    .start-card p { font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
+
+    /* ── ANWESENHEIT (Checkbox-Grid) ─────────────────────────────────── */
+    .sg-label { font-weight: 700; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0.9rem 0 0.4rem; display: flex; align-items: center; gap: 0.4rem; }
+    .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 0.45rem; }
+    .check-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 0.9rem; border: 1.5px solid var(--border); border-radius: 5px; cursor: pointer; font-size: 0.88rem; transition: background 0.12s, border-color 0.12s; user-select: none; }
+    .check-item:hover { background: #eeedf0; border-color: var(--blue); }
+    .check-item:has(input:checked) { background: var(--blue); color: white; border-color: var(--blue2); }
+    .check-item input { accent-color: white; width: 1rem; height: 1rem; flex-shrink: 0; }
+
+    /* ── KANDIDATEN-EINGABE ──────────────────────────────────────────── */
+    .kandidat-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid #f0ece3; font-size: 0.9rem; }
+    .kandidat-row:last-child { border-bottom: none; }
+
+    /* ── ABSTIMMUNGSFORMULAR (Mitglied) ──────────────────────────────── */
+    .vote-card { border: 1.5px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
+    .vote-card-name { padding: 0.6rem 1rem; font-weight: 600; font-size: 0.92rem; background: #f8f7f4; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; }
+    .vote-btn-group { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .vote-btn { padding: 0.8rem 0.4rem; text-align: center; font-size: 0.88rem; font-family: 'Source Sans 3', sans-serif; font-weight: 600; cursor: pointer; border: none; border-right: 1px solid var(--border); background: white; color: var(--ink); transition: background 0.12s, color 0.12s; }
+    .vote-btn:last-child { border-right: none; }
+    .vote-btn:hover { background: #eeedf0; }
+    .vote-btn.sel-V { background: #3a4060; color: white; }
+    .vote-btn.sel-G { background: #2a5840; color: white; }
+    .vote-btn.sel-S { background: #7c5a10; color: white; }
+    .vote-btn.sel-N { background: #6a1c1c; color: white; }
+
+    /* ── MONITOR (Fortschrittsanzeige) ───────────────────────────────── */
+    .progress-ring-wrap { text-align: center; padding: 1.5rem 0 1rem; }
+    .progress-ring-wrap .zahl { font-family: 'Playfair Display', serif; font-size: 2.5rem; color: var(--blue); }
+    .progress-ring-wrap .label { font-size: 0.85rem; color: var(--muted); }
+    .progress-bar-track { height: 8px; background: #e0ddd8; border-radius: 4px; margin: 0.5rem 0 1.25rem; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: var(--blue); border-radius: 4px; transition: width 0.4s; }
+    .noch-ausstehend { font-size: 0.85rem; color: var(--muted); margin-top: 0.5rem; line-height: 1.8; }
+
+    /* ── ERGEBNIS-TABELLE ────────────────────────────────────────────── */
+    .res-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .res-table { min-width: 420px; }
+    .res-table th.cat-v { background: #3a4060; text-align: center; }
+    .res-table th.cat-g { background: #2a5840; text-align: center; }
+    .res-table th.cat-s { background: #7c5a10; text-align: center; }
+    .res-table th.cat-n { background: #6a1c1c; text-align: center; }
+
+    /* ── WARTEN-SCREEN ───────────────────────────────────────────────── */
+    .warten-wrap { text-align: center; padding: 2.5rem 1rem; }
+    .warten-wrap .icon { font-size: 3rem; margin-bottom: 1rem; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .warten-wrap h2 { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--blue); margin-bottom: 0.5rem; }
+    .warten-wrap p { font-size: 0.9rem; color: var(--muted); }
+
+    /* ── MOBILE HOCHFORMAT ───────────────────────────────────────────── */
+    @media (max-width: 480px) and (orientation: portrait) {
+      header { padding: 0.8rem 1rem; }
+      .container { padding: 0 0.75rem; margin: 0.75rem auto; }
+      .card { padding: 1rem; }
+      .start-grid { grid-template-columns: 1fr; }
+      .form-row { flex-direction: column; }
+      .form-group.wide, .form-group { flex: unset; width: 100%; }
+      .form-row > div:last-child, .form-row .btn { width: 100%; }
+      .check-grid { grid-template-columns: repeat(2, 1fr); }
+      .vote-btn-group { grid-template-columns: repeat(2, 1fr); }
+      .vote-btn { padding: 0.85rem 0.3rem; border-bottom: 1px solid var(--border); }
+      .btn-row { flex-wrap: wrap; }
+      .btn-row .btn, .btn-row .right .btn { width: 100%; }
+      input[type="text"], input[type="password"], select { font-size: 1rem; padding: 0.75rem; }
+    }
+
+    @media print {
+      header, .btn-row, .no-print { display: none !important; }
+      .card { box-shadow: none; }
+      body { background: white; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    RIAS Kammerchor Berlin
+    <span>Vorsingen · Online-Abstimmung</span>
+  </div>
+  <div class="role-badge" id="roleBadge"></div>
+</header>
+
+<div class="container">
+
+  <!-- ══ START ══════════════════════════════════════════════════════════ -->
+  <div class="screen active" id="s-start">
+    <div class="card">
+      <div class="card-title">Willkommen</div>
+      <div class="alert alert-info" id="startAlert" style="display:none"></div>
+      <div class="start-grid">
+        <div class="start-card" onclick="goAdminLogin()">
+          <div class="icon">🎼</div>
+          <h3>Leitung</h3>
+          <p>Sitzung verwalten, Abstimmung öffnen und auswerten</p>
+        </div>
+        <div class="start-card" onclick="goMemberStart()">
+          <div class="icon">🎵</div>
+          <h3>Mitglied</h3>
+          <p>An der aktuellen Abstimmung teilnehmen</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ADMIN: LOGIN ════════════════════════════════════════════════════ -->
+  <div class="screen" id="s-admin-login">
+    <div class="card">
+      <div class="card-title">Leitung – Anmeldung</div>
+      <div class="form-group" style="margin-bottom:1rem">
+        <label>Passwort</label>
+        <input type="password" id="adminPass" placeholder="Passwort eingeben">
+      </div>
+      <div class="alert alert-error" id="loginError" style="display:none">Falsches Passwort.</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-start')">← Zurück</button>
+      <button class="btn btn-primary" onclick="checkLogin()">Anmelden →</button>
+    </div>
+  </div>
+
+  <!-- ══ ADMIN: SITZUNG ══════════════════════════════════════════════════ -->
+  <div class="screen" id="s-admin-sitzung">
+    <div class="card">
+      <div class="card-title">Sitzungsverwaltung</div>
+      <div id="sitzungInfo"></div>
+    </div>
+    <div class="btn-row" id="sitzungBtnRow"></div>
+  </div>
+
+  <!-- ══ ADMIN: KANDIDATEN ═══════════════════════════════════════════════ -->
+  <div class="screen" id="s-admin-kandidaten">
+    <div class="card">
+      <div class="card-title">Kandidaten eintragen</div>
+      <div class="form-row">
+        <div class="form-group wide">
+          <label>Name</label>
+          <input type="text" id="kName" placeholder="Vorname Nachname">
+        </div>
+        <div class="form-group">
+          <label>Stimmgruppe</label>
+          <select id="kSg">
+            <option value="Sopran">Sopran</option>
+            <option value="Alt">Alt</option>
+            <option value="Tenor">Tenor</option>
+            <option value="Bass">Bass</option>
+          </select>
+        </div>
+        <div><button class="btn btn-primary" onclick="addKandidat()">+</button></div>
+      </div>
+      <div id="kandidatenListe"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-admin-sitzung')">← Zurück</button>
+      <button class="btn btn-primary" id="btnZuAnwesenheit" onclick="showScreen('s-admin-anwesenheit')" disabled>Weiter zur Anwesenheit →</button>
+    </div>
+  </div>
+
+  <!-- ══ ADMIN: ANWESENHEIT ══════════════════════════════════════════════ -->
+  <div class="screen" id="s-admin-anwesenheit">
+    <div class="card">
+      <div class="card-title">Anwesenheit der Mitglieder</div>
+      <div class="alert alert-info" id="anwAlert">⏳ Mitglieder werden geladen…</div>
+      <div id="anwGrid" style="display:none"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-admin-kandidaten')">← Zurück</button>
+      <div class="right">
+        <span style="font-size:0.85rem;color:var(--muted);align-self:center" id="anwCount"></span>
+        <button class="btn btn-primary" id="btnSpeichern" onclick="sitzungSpeichernUndOeffnen()" disabled>Abstimmung öffnen ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ADMIN: MONITOR ═════════════════════════════════════════════════ -->
+  <div class="screen" id="s-admin-monitor">
+    <div class="card">
+      <div class="card-title">Abstimmung läuft</div>
+      <div class="alert alert-ok">✓ Die Abstimmung ist geöffnet. Mitglieder können jetzt abstimmen.</div>
+      <div class="progress-ring-wrap">
+        <div class="zahl" id="monitorZahl">0 / 0</div>
+        <div class="label">haben bereits abgestimmt</div>
+      </div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="monitorBar" style="width:0%"></div></div>
+      <div class="noch-ausstehend" id="monitorAusstehend"></div>
+    </div>
+    <div class="btn-row">
+      <span style="font-size:0.82rem;color:var(--muted)">Die Abstimmung bleibt offen, bis du sie schließt.</span>
+      <button class="btn btn-danger" onclick="abstimmungSchliessen()">Abstimmung schließen ■</button>
+    </div>
+  </div>
+
+  <!-- ══ ADMIN / MITGLIED: ERGEBNIS ═════════════════════════════════════ -->
+  <div class="screen" id="s-ergebnis">
+    <div class="card" id="ergebnisCard">
+      <div class="card-title">Auswertungsergebnis</div>
+      <div class="result-meta" id="ergebnisMeta" style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;line-height:1.7"></div>
+      <div class="res-wrap"><div id="ergebnisTabelle"></div></div>
+      <div id="ergebnisBeschreibungen" style="margin-top:1.5rem"></div>
+    </div>
+    <div class="btn-row no-print">
+      <button class="btn btn-ghost" onclick="showScreen('s-start'); resetAll()">⌂ Startseite</button>
+      <button class="btn btn-primary" onclick="window.print()">🖨️ Drucken</button>
+    </div>
+  </div>
+
+  <!-- ══ MITGLIED: NAMENSAUSWAHL ════════════════════════════════════════ -->
+  <div class="screen" id="s-member-name">
+    <div class="card">
+      <div class="card-title">Wer bist du?</div>
+      <div class="alert alert-info" id="memberNameAlert" style="display:none"></div>
+      <div class="form-group" style="margin-bottom:1rem">
+        <label>Name auswählen</label>
+        <select id="memberSelect">
+          <option value="">– bitte wählen –</option>
+        </select>
+      </div>
+      <div class="alert alert-warn" id="bereitsAbgestimmt" style="display:none">
+        Du hast bereits abgestimmt. Bitte warte auf das Ergebnis.
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-start')">← Zurück</button>
+      <button class="btn btn-primary" id="btnZurAbstimmung" onclick="startMemberVote()" disabled>Zur Abstimmung →</button>
+    </div>
+  </div>
+
+  <!-- ══ MITGLIED: ABSTIMMUNG ═══════════════════════════════════════════ -->
+  <div class="screen" id="s-member-vote">
+    <div class="card">
+      <div class="card-title" id="memberVoteTitle">Abstimmung</div>
+      <div class="alert alert-info" style="margin-bottom:1rem;font-size:0.85rem">
+        Alle Kandidaten auf einmal bewerten. Standard ist <strong>Nein</strong> — bitte bewusst ändern.
+      </div>
+      <div id="memberVoteForm"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-member-name')">← Zurück</button>
+      <button class="btn btn-primary" onclick="stimmeAbgeben()">Stimme abgeben ✓</button>
+    </div>
+  </div>
+
+  <!-- ══ MITGLIED: WARTEN ═══════════════════════════════════════════════ -->
+  <div class="screen" id="s-member-warten">
+    <div class="card">
+      <div class="warten-wrap">
+        <div class="icon">⏳</div>
+        <h2>Danke!</h2>
+        <p>Deine Stimme wurde anonym gespeichert.<br>Warte bitte, bis die Leitung die Abstimmung schließt.</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// KONFIGURATION
+// ════════════════════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://lqfoybhgtlyvnbtuwggi.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_MJUP_gLZccCY-UUlF1p7oQ_JB1hta_g';
+const ADMIN_PASS   = 'kl@usdieter240405';
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ════════════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════════════
+const KATEGORIEN   = ['Vakanz', 'Gast', 'Verstärkung', 'Nein'];
+const STIMMGRUPPEN = ['Sopran', 'Alt', 'Tenor', 'Bass'];
+
+let currentSitzung  = null;   // {id, status, datum}
+let currentMitglied = null;   // {id, vorname, nachname, stimme}
+let kandidaten      = [];     // [{id, name, stimmgruppe}]
+let alleMitglieder  = [];     // aus Supabase mitglieder-Tabelle
+let anwesendeListe  = [];     // anwesende Mitglieder der Sitzung
+let memberVotes     = {};     // {kandidatId: Kategorie} – temporär, nur im Browser
+let realtimeSub     = null;
+
+// ════════════════════════════════════════════════════════════════════════
+// HILFSFUNKTIONEN
+// ════════════════════════════════════════════════════════════════════════
+function badge(sg) {
+  const k = sg ? sg[0].toUpperCase() : '?';
+  return `<span class="badge badge-${k}">${k}</span>`;
+}
+
+function normStimme(s) {
+  if (!s) return 'Bass';
+  const v = s.trim().toLowerCase();
+  if (v.startsWith('s')) return 'Sopran';
+  if (v.startsWith('a')) return 'Alt';
+  if (v.startsWith('t')) return 'Tenor';
+  return 'Bass';
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function setRoleBadge(text) {
+  const el = document.getElementById('roleBadge');
+  el.textContent = text;
+  el.classList.toggle('visible', !!text);
+}
+
+function resetAll() {
+  currentSitzung  = null;
+  currentMitglied = null;
+  kandidaten      = [];
+  anwesendeListe  = [];
+  memberVotes     = {};
+  if (realtimeSub) { sb.removeChannel(realtimeSub); realtimeSub = null; }
+  setRoleBadge('');
+  sessionStorage.removeItem('rkc_admin');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// START – prüft, ob eine aktive Sitzung existiert
+// ════════════════════════════════════════════════════════════════════════
+async function checkActiveSitzung() {
+  const { data } = await sb
+    .from('v_sitzungen')
+    .select('*')
+    .in('status', ['vorbereitung', 'offen'])
+    .order('erstellt_am', { ascending: false })
+    .limit(1);
+  return data?.[0] || null;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – Login
+// ════════════════════════════════════════════════════════════════════════
+function goAdminLogin() {
+  if (sessionStorage.getItem('rkc_admin') === '1') {
+    adminNachLogin();
+  } else {
+    showScreen('s-admin-login');
+    setTimeout(() => document.getElementById('adminPass').focus(), 100);
+  }
+}
+
+document.getElementById('adminPass')
+  .addEventListener('keydown', e => { if (e.key === 'Enter') checkLogin(); });
+
+function checkLogin() {
+  const val = document.getElementById('adminPass').value;
+  if (val === ADMIN_PASS) {
+    sessionStorage.setItem('rkc_admin', '1');
+    document.getElementById('adminPass').value = '';
+    document.getElementById('loginError').style.display = 'none';
+    adminNachLogin();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+async function adminNachLogin() {
+  setRoleBadge('Leitung');
+  showScreen('s-admin-sitzung');
+  await ladeSitzungsStatus();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – Sitzungsverwaltung
+// ════════════════════════════════════════════════════════════════════════
+async function ladeSitzungsStatus() {
+  const sitzung = await checkActiveSitzung();
+  const infoEl  = document.getElementById('sitzungInfo');
+  const btnEl   = document.getElementById('sitzungBtnRow');
+
+  if (!sitzung) {
+    // Letzte abgeschlossene Sitzung anzeigen
+    const { data: letzte } = await sb
+      .from('v_sitzungen')
+      .select('*')
+      .eq('status', 'geschlossen')
+      .order('erstellt_am', { ascending: false })
+      .limit(1);
+
+    infoEl.innerHTML = `
+      <div class="alert alert-info">Keine aktive Sitzung vorhanden.</div>
+      ${letzte?.[0] ? `<p style="font-size:0.85rem;color:var(--muted)">Letzte Sitzung: ${new Date(letzte[0].erstellt_am).toLocaleDateString('de-DE')}</p>` : ''}`;
+    btnEl.innerHTML = `
+      <span></span>
+      <button class="btn btn-primary" onclick="neueSitzungAnlegen()">+ Neue Sitzung anlegen</button>`;
+  } else if (sitzung.status === 'vorbereitung') {
+    currentSitzung = sitzung;
+    await ladeKandidatenFuerSitzung();
+    infoEl.innerHTML = `
+      <div class="alert alert-warn">Sitzung in Vorbereitung – noch nicht geöffnet.</div>
+      <p style="font-size:0.85rem;color:var(--muted)">Erstellt: ${new Date(sitzung.erstellt_am).toLocaleString('de-DE')}</p>`;
+    btnEl.innerHTML = `
+      <button class="btn btn-ghost btn-danger btn-sm" onclick="sitzungLoeschen()">Sitzung löschen</button>
+      <div class="right">
+        <button class="btn btn-outline" onclick="showScreen('s-admin-kandidaten'); renderKandidaten()">Kandidaten bearbeiten</button>
+        <button class="btn btn-primary" onclick="showScreen('s-admin-anwesenheit'); ladeAnwesenheit()">Anwesenheit & Öffnen →</button>
+      </div>`;
+  } else if (sitzung.status === 'offen') {
+    currentSitzung = sitzung;
+    await ladeKandidatenFuerSitzung();
+    await ladeAnwesenheitFuerSitzung();
+    infoEl.innerHTML = `<div class="alert alert-ok">✓ Abstimmung ist geöffnet.</div>`;
+    btnEl.innerHTML = `
+      <span></span>
+      <button class="btn btn-primary" onclick="showScreen('s-admin-monitor'); starteMonitor()">Zum Monitor →</button>`;
+  }
+}
+
+async function neueSitzungAnlegen() {
+  const { data, error } = await sb
+    .from('v_sitzungen')
+    .insert({ status: 'vorbereitung' })
+    .select()
+    .single();
+  if (error) { alert('Fehler: ' + error.message); return; }
+  currentSitzung = data;
+  kandidaten = [];
+  showScreen('s-admin-kandidaten');
+  renderKandidaten();
+}
+
+async function sitzungLoeschen() {
+  if (!confirm('Sitzung wirklich löschen? Alle Daten werden entfernt.')) return;
+  await sb.from('v_sitzungen').delete().eq('id', currentSitzung.id);
+  currentSitzung = null;
+  await ladeSitzungsStatus();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – Kandidaten
+// ════════════════════════════════════════════════════════════════════════
+async function ladeKandidatenFuerSitzung() {
+  const { data } = await sb
+    .from('v_kandidaten')
+    .select('*')
+    .eq('sitzung_id', currentSitzung.id)
+    .order('reihenfolge');
+  kandidaten = data || [];
+}
+
+async function addKandidat() {
+  const name = document.getElementById('kName').value.trim();
+  const sg   = document.getElementById('kSg').value;
+  if (!name) return;
+
+  const { data, error } = await sb
+    .from('v_kandidaten')
+    .insert({ sitzung_id: currentSitzung.id, name, stimmgruppe: sg, reihenfolge: kandidaten.length })
+    .select().single();
+  if (error) { alert('Fehler: ' + error.message); return; }
+
+  kandidaten.push(data);
+  document.getElementById('kName').value = '';
+  document.getElementById('kName').focus();
+  renderKandidaten();
+}
+
+document.getElementById('kName')
+  .addEventListener('keydown', e => { if (e.key === 'Enter') addKandidat(); });
+
+async function removeKandidat(id) {
+  await sb.from('v_kandidaten').delete().eq('id', id);
+  kandidaten = kandidaten.filter(k => k.id !== id);
+  renderKandidaten();
+}
+
+function renderKandidaten() {
+  const el = document.getElementById('kandidatenListe');
+  if (!kandidaten.length) {
+    el.innerHTML = `<p style="color:var(--muted);font-style:italic;font-size:0.88rem;padding:0.5rem 0">Noch keine Kandidaten.</p>`;
+  } else {
+    el.innerHTML = `<div style="margin-top:0.5rem">` +
+      kandidaten.map((k, i) => `
+        <div class="kandidat-row">
+          <span style="color:var(--muted);width:1.5rem">${i+1}</span>
+          <span style="flex:1;font-weight:600">${k.name}</span>
+          <span>${badge(k.stimmgruppe)}</span>
+          <button class="btn btn-danger btn-sm" onclick="removeKandidat('${k.id}')">✕</button>
+        </div>`).join('') + `</div>`;
+  }
+  document.getElementById('btnZuAnwesenheit').disabled = kandidaten.length === 0;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – Anwesenheit
+// ════════════════════════════════════════════════════════════════════════
+async function ladeAnwesenheit() {
+  document.getElementById('anwAlert').style.display = 'block';
+  document.getElementById('anwGrid').style.display  = 'none';
+
+  const { data, error } = await sb
+    .from('mitglieder')
+    .select('id, vorname, nachname, stimme')
+    .order('stimme').order('nachname');
+
+  if (error) {
+    document.getElementById('anwAlert').className = 'alert alert-error';
+    document.getElementById('anwAlert').textContent = '❌ ' + error.message;
+    return;
+  }
+  alleMitglieder = data;
+  document.getElementById('anwAlert').style.display = 'none';
+  renderAnwesenheit();
+}
+
+async function ladeAnwesenheitFuerSitzung() {
+  const { data } = await sb
+    .from('v_anwesend')
+    .select('mitglied_id, mitglieder(id, vorname, nachname, stimme)')
+    .eq('sitzung_id', currentSitzung.id);
+  anwesendeListe = (data || []).map(r => r.mitglieder);
+}
+
+function renderAnwesenheit() {
+  const grouped = {};
+  STIMMGRUPPEN.forEach(sg => { grouped[sg] = []; });
+  alleMitglieder.forEach(m => grouped[normStimme(m.stimme)]?.push(m));
+
+  const grid = document.getElementById('anwGrid');
+  grid.innerHTML = STIMMGRUPPEN.map(sg => {
+    if (!grouped[sg].length) return '';
+    return `
+      <div class="sg-label">${badge(sg)} ${sg}</div>
+      <div class="check-grid" style="margin-bottom:0.5rem">
+        ${grouped[sg].map(m => `
+          <label class="check-item">
+            <input type="checkbox" value="${m.id}" onchange="updateAnwCount()">
+            ${m.vorname} ${m.nachname}
+          </label>`).join('')}
+      </div>`;
+  }).join('');
+  grid.style.display = 'block';
+  updateAnwCount();
+}
+
+function updateAnwCount() {
+  const n = document.querySelectorAll('#anwGrid input:checked').length;
+  document.getElementById('anwCount').textContent = `${n} anwesend`;
+  document.getElementById('btnSpeichern').disabled = n === 0;
+}
+
+async function sitzungSpeichernUndOeffnen() {
+  const checked = [...document.querySelectorAll('#anwGrid input:checked')].map(c => c.value);
+  if (!checked.length) return;
+
+  // Anwesenheitsliste speichern
+  await sb.from('v_anwesend').delete().eq('sitzung_id', currentSitzung.id);
+  await sb.from('v_anwesend').insert(
+    checked.map(mid => ({ sitzung_id: currentSitzung.id, mitglied_id: mid }))
+  );
+
+  // Status auf 'offen' setzen
+  await sb.from('v_sitzungen').update({ status: 'offen' }).eq('id', currentSitzung.id);
+  currentSitzung.status = 'offen';
+
+  await ladeAnwesenheitFuerSitzung();
+  showScreen('s-admin-monitor');
+  starteMonitor();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – Monitor (Echtzeit)
+// ════════════════════════════════════════════════════════════════════════
+async function starteMonitor() {
+  await aktualisiereMonitor();
+
+  // Echtzeit-Abo: neue Einträge in v_hat_abgestimmt
+  if (realtimeSub) sb.removeChannel(realtimeSub);
+  realtimeSub = sb.channel('monitor')
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'v_hat_abgestimmt',
+      filter: `sitzung_id=eq.${currentSitzung.id}`
+    }, () => aktualisiereMonitor())
+    .subscribe();
+}
+
+async function aktualisiereMonitor() {
+  const { data: hat } = await sb
+    .from('v_hat_abgestimmt')
+    .select('mitglied_id')
+    .eq('sitzung_id', currentSitzung.id);
+
+  const abgestimmtIds = new Set((hat || []).map(r => r.mitglied_id));
+  const total   = anwesendeListe.length;
+  const fertig  = abgestimmtIds.size;
+  const offen   = anwesendeListe.filter(m => !abgestimmtIds.has(m.id));
+  const pct     = total > 0 ? Math.round(fertig / total * 100) : 0;
+
+  document.getElementById('monitorZahl').textContent  = `${fertig} / ${total}`;
+  document.getElementById('monitorBar').style.width   = pct + '%';
+  document.getElementById('monitorAusstehend').innerHTML = offen.length
+    ? `<strong>Noch ausstehend:</strong> ${offen.map(m => `${m.vorname} ${m.nachname}`).join(', ')}`
+    : `<strong style="color:#1a5230">✓ Alle Mitglieder haben abgestimmt.</strong>`;
+}
+
+async function abstimmungSchliessen() {
+  if (!confirm('Abstimmung jetzt schließen? Sie kann danach nicht mehr geöffnet werden.')) return;
+  if (realtimeSub) { sb.removeChannel(realtimeSub); realtimeSub = null; }
+  await sb.from('v_sitzungen').update({ status: 'geschlossen' }).eq('id', currentSitzung.id);
+  currentSitzung.status = 'geschlossen';
+  await zeigeErgebnis();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// MITGLIED – Flow
+// ════════════════════════════════════════════════════════════════════════
+async function goMemberStart() {
+  setRoleBadge('Mitglied');
+  const sitzung = await checkActiveSitzung();
+
+  if (!sitzung) {
+    const el = document.getElementById('startAlert');
+    el.className = 'alert alert-warn';
+    el.textContent = 'Keine aktive Abstimmung – bitte warte auf die Leitung.';
+    el.style.display = 'block';
+    return;
+  }
+
+  if (sitzung.status === 'vorbereitung') {
+    const el = document.getElementById('startAlert');
+    el.className = 'alert alert-warn';
+    el.textContent = 'Die Abstimmung wurde noch nicht geöffnet – bitte warte.';
+    el.style.display = 'block';
+    return;
+  }
+
+  currentSitzung = sitzung;
+  await ladeMemberNamen();
+  showScreen('s-member-name');
+}
+
+async function ladeMemberNamen() {
+  const { data } = await sb
+    .from('v_anwesend')
+    .select('mitglied_id, mitglieder(id, vorname, nachname, stimme)')
+    .eq('sitzung_id', currentSitzung.id);
+
+  anwesendeListe = (data || []).map(r => r.mitglieder)
+    .sort((a, b) => a.nachname.localeCompare(b.nachname, 'de'));
+
+  const sel = document.getElementById('memberSelect');
+  sel.innerHTML = `<option value="">– bitte wählen –</option>` +
+    anwesendeListe.map(m =>
+      `<option value="${m.id}">${m.vorname} ${m.nachname}</option>`
+    ).join('');
+  sel.onchange = () => pruefeObAbgestimmt(sel.value);
+  document.getElementById('btnZurAbstimmung').disabled = true;
+}
+
+async function pruefeObAbgestimmt(mid) {
+  if (!mid) { document.getElementById('btnZurAbstimmung').disabled = true; return; }
+
+  const { data } = await sb
+    .from('v_hat_abgestimmt')
+    .select('id')
+    .eq('sitzung_id', currentSitzung.id)
+    .eq('mitglied_id', mid)
+    .limit(1);
+
+  const bereitsAlert = document.getElementById('bereitsAbgestimmt');
+  const btn          = document.getElementById('btnZurAbstimmung');
+
+  if (data?.length) {
+    bereitsAlert.style.display = 'block';
+    btn.disabled = true;
+    // Auf Sitzungsende warten
+    abboniereSitzungsEnde();
+  } else {
+    bereitsAlert.style.display = 'none';
+    btn.disabled = false;
+    currentMitglied = anwesendeListe.find(m => m.id === mid);
+  }
+}
+
+async function startMemberVote() {
+  await ladeKandidatenFuerSitzung();
+
+  // Votes initialisieren (Default: Nein)
+  memberVotes = {};
+  kandidaten.forEach(k => { memberVotes[k.id] = 'Nein'; });
+
+  // Formular aufbauen
+  const catKey = { 'Vakanz':'V','Gast':'G','Verstärkung':'S','Nein':'N' };
+  document.getElementById('memberVoteTitle').textContent =
+    `Abstimmung – ${kandidaten.length} Kandidat${kandidaten.length !== 1 ? 'en' : ''}`;
+
+  document.getElementById('memberVoteForm').innerHTML = kandidaten.map(k => `
+    <div class="vote-card">
+      <div class="vote-card-name">${k.name} ${badge(k.stimmgruppe)}</div>
+      <div class="vote-btn-group">
+        ${KATEGORIEN.map(kat => {
+          const ck = catKey[kat];
+          return `<button class="vote-btn${kat === 'Nein' ? ' sel-N' : ''}"
+            onclick="selectMemberVote('${k.id}', '${kat}', this)"
+            data-kid="${k.id}">${kat}</button>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+
+  showScreen('s-member-vote');
+}
+
+function selectMemberVote(kid, kat, btn) {
+  memberVotes[kid] = kat;
+  const catKey = { 'Vakanz':'V','Gast':'G','Verstärkung':'S','Nein':'N' };
+  const group  = btn.closest('.vote-btn-group');
+  group.querySelectorAll('.vote-btn').forEach(b => { b.className = 'vote-btn'; });
+  btn.classList.add(`sel-${catKey[kat]}`);
+}
+
+async function stimmeAbgeben() {
+  if (!confirm('Stimme jetzt abgeben? Das kann nicht rückgängig gemacht werden.')) return;
+
+  // Stimmen anonym speichern (ohne mitglied_id, aber mit stimmgruppe für SG-Quoten)
+  const stimmen = kandidaten.map(k => ({
+    sitzung_id:  currentSitzung.id,
+    kandidat_id: k.id,
+    kategorie:   memberVotes[k.id] || 'Nein',
+    stimmgruppe: normStimme(currentMitglied.stimme)
+  }));
+  const { error: e1 } = await sb.from('v_stimmen').insert(stimmen);
+  if (e1) { alert('Fehler beim Speichern: ' + e1.message); return; }
+
+  // Nur "wer hat abgestimmt" speichern
+  const { error: e2 } = await sb.from('v_hat_abgestimmt').insert({
+    sitzung_id:  currentSitzung.id,
+    mitglied_id: currentMitglied.id
+  });
+  if (e2) { alert('Fehler: ' + e2.message); return; }
+
+  showScreen('s-member-warten');
+  abboniereSitzungsEnde();
+}
+
+function abboniereSitzungsEnde() {
+  if (realtimeSub) return;
+  realtimeSub = sb.channel('sitzung-ende')
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'v_sitzungen',
+      filter: `id=eq.${currentSitzung.id}`
+    }, async payload => {
+      if (payload.new.status === 'geschlossen') {
+        currentSitzung.status = 'geschlossen';
+        sb.removeChannel(realtimeSub); realtimeSub = null;
+        await zeigeErgebnis();
+      }
+    })
+    .subscribe();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// AUSWERTUNG (gemeinsam für Admin und Mitglied)
+// ════════════════════════════════════════════════════════════════════════
+async function zeigeErgebnis() {
+  // Stimmen laden
+  const { data: stimmenData } = await sb
+    .from('v_stimmen')
+    .select('kandidat_id, kategorie, stimmgruppe')
+    .eq('sitzung_id', currentSitzung.id);
+
+  // Anwesenheit laden falls nötig
+  if (!anwesendeListe.length) await ladeAnwesenheitFuerSitzung();
+  if (!kandidaten.length)    await ladeKandidatenFuerSitzung();
+
+  // Stimmen aggregieren
+  const rohzahlen = {};
+  kandidaten.forEach(k => {
+    rohzahlen[k.id] = { vV: 0, vG: 0, vS: 0, vN: 0 };
+  });
+  (stimmenData || []).forEach(s => {
+    const r = rohzahlen[s.kandidat_id];
+    if (!r) return;
+    if      (s.kategorie === 'Vakanz')      r.vV++;
+    else if (s.kategorie === 'Gast')        r.vG++;
+    else if (s.kategorie === 'Verstärkung') r.vS++;
+    else                                    r.vN++;
+  });
+
+  const nGesamt = anwesendeListe.length;
+
+  const ergebnisse = anwendeRegel4(kandidaten.map(k => {
+    const r    = rohzahlen[k.id];
+    const sgM  = anwesendeListe.filter(m => normStimme(m.stimme) === k.stimmgruppe);
+    const nSG  = sgM.length;
+
+    // Exakte SG-Stimmen aus gespeicherter stimmgruppe (Option B)
+    const stimmenFuerK = (stimmenData || []).filter(s => s.kandidat_id === k.id && normStimme(s.stimmgruppe) === k.stimmgruppe);
+    const sgV = stimmenFuerK.filter(s => s.kategorie === 'Vakanz').length;
+    const sgG = stimmenFuerK.filter(s => s.kategorie === 'Gast').length;
+    const sgS = stimmenFuerK.filter(s => s.kategorie === 'Verstärkung').length;
+
+    const effGast  = r.vV + r.vG;
+    const effVerst = r.vV + r.vG + r.vS;
+    const sgEffG   = sgV + sgG;
+    const sgEffS   = sgV + sgG + sgS;
+
+    function besteht(eff, sgEff) {
+      if (nGesamt === 0) return false;
+      const rG  = eff / nGesamt;
+      const rSG = nSG > 0 ? sgEff / nSG : 0;
+      return (rG >= 2/3 && rSG >= 0.51) || (rG > 0.5 && rSG >= 0.75);
+    }
+
+    let ergebnis, effFuerRegel4;
+    if      (besteht(r.vV,    sgV))    { ergebnis = 'Vakanz';      effFuerRegel4 = r.vV;    }
+    else if (besteht(effGast,  sgEffG)) { ergebnis = 'Gast';        effFuerRegel4 = effGast; }
+    else if (besteht(effVerst, sgEffS)) { ergebnis = 'Verstärkung'; effFuerRegel4 = effVerst;}
+    else                                { ergebnis = 'Nein';        effFuerRegel4 = 0;       }
+
+    const pct = (n, d) => d > 0 ? Math.round(n/d*100) + '\u202f%' : '–';
+    return {
+      kandidat: k,
+      ergebnis, effFuerRegel4,
+      roh: r, nGesamt, nSG,
+      eff: { gast: effGast, verst: effVerst },
+      sg:  { vakanz: sgV, gast: sgEffG, verst: sgEffS },
+      pctGes: { vakanz: pct(r.vV, nGesamt), gast: pct(effGast, nGesamt), verst: pct(effVerst, nGesamt) },
+      pctSG:  { vakanz: pct(sgV, nSG),      gast: pct(sgEffG, nSG),      verst: pct(sgEffS, nSG) }
+    };
+  }));
+
+  renderErgebnis(ergebnisse, nGesamt);
+  showScreen('s-ergebnis');
+}
+
+function anwendeRegel4(ergebnisse) {
+  ['Vakanz', 'Gast', 'Verstärkung'].forEach(kat => {
+    STIMMGRUPPEN.forEach(sg => {
+      const gruppe = ergebnisse.filter(e => e.ergebnis === kat && e.kandidat.stimmgruppe === sg);
+      if (gruppe.length > 1) {
+        const max = Math.max(...gruppe.map(e => e.effFuerRegel4));
+        gruppe.forEach(e => { if (e.effFuerRegel4 < max) e.regel4Zurueck = true; });
+      }
+    });
+  });
+  return ergebnisse;
+}
+
+const ESTIL = { 'Vakanz':['#3a4060','★'],'Gast':['#2a5840','✓'],'Verstärkung':['#7c5a10','✓'],'Nein':['#6a1c1c','✗'] };
+function ergebnisTag(e) {
+  const [bg, icon] = ESTIL[e.ergebnis];
+  const label = e.regel4Zurueck ? `${e.ergebnis} (Regel\u00a04)` : e.ergebnis;
+  return `<span style="background:${e.regel4Zurueck?'#888':bg};color:white;padding:0.2rem 0.55rem;border-radius:3px;font-size:0.78rem;font-weight:700">${icon} ${label}</span>`;
+}
+
+function renderErgebnis(ergebnisse, total) {
+  document.getElementById('ergebnisMeta').innerHTML =
+    `Anwesende Mitglieder: <strong>${total}</strong> &nbsp;·&nbsp; Kandidaten: <strong>${kandidaten.length}</strong><br>
+     <small>Rohstimmen (Summe je Zeile = ${total}). Prozente in der entscheidenden Spalte (Ges. / SG). 
+     Zur Leitung werden nur Empfehlungen mitgeteilt (Regel\u00a05).</small>`;
+
+  const rows = ergebnisse.map(e => {
+    const { roh: r, nGesamt, nSG, ergebnis } = e;
+    const k = e.kandidat;
+    const pct = (n, sg) => `<div style="font-size:0.7rem;color:var(--muted)">${nGesamt>0?Math.round(n/nGesamt*100)+'%':'–'} / ${nSG>0?Math.round(sg/nSG*100)+'%':'–'}</div>`;
+    const pV = ergebnis==='Vakanz'      ? pct(r.vV,       e.sg.vakanz) : '';
+    const pG = ergebnis==='Gast'        ? pct(e.eff.gast, e.sg.gast)   : '';
+    const pS = ergebnis==='Verstärkung' ? pct(e.eff.verst,e.sg.verst)  : '';
+    return `<tr>
+      <td><strong>${k.name}</strong></td>
+      <td>${badge(k.stimmgruppe)}</td>
+      <td class="center"><strong style="color:#3a4060">${r.vV}</strong>${pV}</td>
+      <td class="center"><strong style="color:#2a5840">${r.vG}</strong>${pG}</td>
+      <td class="center"><strong style="color:#7c5a10">${r.vS}</strong>${pS}</td>
+      <td class="center"><strong style="color:#6a1c1c">${r.vN}</strong></td>
+      <td>${ergebnisTag(e)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('ergebnisTabelle').innerHTML = `
+    <table class="res-table">
+      <thead><tr>
+        <th>Kandidat/in</th><th>SG</th>
+        <th class="cat-v">Vakanz</th><th class="cat-g">Gast</th>
+        <th class="cat-s">Verstärk.</th><th class="cat-n">Nein</th>
+        <th>Empfehlung</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  document.getElementById('ergebnisBeschreibungen').innerHTML =
+    ergebnisse.map(e => {
+      const col = { 'Vakanz':'#3a4060','Gast':'#2a5840','Verstärkung':'#7c5a10','Nein':'#6a1c1c' };
+      return `<div style="border-left:3px solid ${col[e.ergebnis]};padding:0.6rem 1rem;
+                margin-bottom:0.65rem;background:#faf9f7;border-radius:0 4px 4px 0;
+                font-size:0.86rem;line-height:1.6;">
+        <strong>${e.kandidat.name}</strong> ${badge(e.kandidat.stimmgruppe)}<br>
+        ${generiereText(e)}
+      </div>`;
+    }).join('');
+}
+
+// ── Erläuterungstext ──────────────────────────────────────────────────
+function bestehtWeg(eff, sgEff, nGesamt, nSG) {
+  if (nGesamt === 0) return null;
+  const rG = eff/nGesamt, rSG = nSG > 0 ? sgEff/nSG : 0;
+  if (rG >= 2/3 && rSG >= 0.51) return 'A';
+  if (rG >  0.5 && rSG >= 0.75) return 'B';
+  return null;
+}
+
+function generiereText(e) {
+  const { roh: r, eff, sg, nGesamt, nSG, ergebnis, kandidat: k } = e;
+  const p = (n, d) => d > 0 ? Math.round(n/d*100)+'\u202f%' : '–';
+  const sg_label = `${nSG} aus dem ${k.stimmgruppe}`;
+
+  if (ergebnis === 'Nein') {
+    return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) stimmten ` +
+      `${r.vV}× Vakanz, ${r.vG}× Gast, ${r.vS}× Verstärkung und ${r.vN}× Nein. ` +
+      `Auch unter Berücksichtigung der Stimmenkaskade (Regel\u00a06) wurde für keine ` +
+      `Kategorie eine der erforderlichen Mehrheiten erreicht. <strong>Empfehlung: Abgelehnt.</strong>`;
+  }
+  let einl = '';
+  if (ergebnis === 'Gast')
+    einl = `Für eine Vakanz-Einstellung reichte es nicht aus (${p(r.vV,nGesamt)}\u202fges. / ${p(sg.vakanz,nSG)}\u202fSG). `;
+  if (ergebnis === 'Verstärkung')
+    einl = `Weder Vakanz (${p(r.vV,nGesamt)}\u202fges. / ${p(sg.vakanz,nSG)}\u202fSG) noch Gast (${p(eff.gast,nGesamt)}\u202fges. / ${p(sg.gast,nSG)}\u202fSG) wurden erreicht. `;
+
+  const effN  = ergebnis==='Vakanz' ? r.vV      : ergebnis==='Gast' ? eff.gast  : eff.verst;
+  const sgE   = ergebnis==='Vakanz' ? sg.vakanz  : ergebnis==='Gast' ? sg.gast   : sg.verst;
+  const katL  = ergebnis==='Vakanz' ? 'Vakanz'
+              : ergebnis==='Gast'   ? 'Gast (Vakanz\u202f+\u202fGast kaskadiert)'
+              : 'Verstärkung (V\u202f+\u202fG\u202f+\u202fS kaskadiert)';
+  const weg   = bestehtWeg(effN, sgE, nGesamt, nSG);
+  const wegT  = weg==='A'
+    ? `Die 2/3-Mehrheit (${p(effN,nGesamt)}\u202fges.) und das 51\u202f%-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg\u202fA, Regel\u202f2).`
+    : `Die einfache Mehrheit (${p(effN,nGesamt)}\u202fges.) und das ¾-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg\u202fB, Regel\u202f3).`;
+  const r4 = e.regel4Zurueck
+    ? ` Ein anderer Kandidat derselben Stimmgruppe erreichte dieselbe Kategorie mit mehr Stimmen — ${k.name} wird zurückgestellt (Regel\u00a04).`
+    : '';
+
+  return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) entfielen ${effN} Stimmen auf ${katL}. ` +
+    einl + wegT + r4 +
+    ` <strong>Empfehlung: ${e.regel4Zurueck ? ergebnis+' – zurückgestellt' : ergebnis}.</strong>`;
+}
+</script>
+</body>
+</html>
