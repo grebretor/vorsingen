@@ -318,9 +318,14 @@
       </div>
       <div class="progress-bar-track"><div class="progress-bar-fill" id="monitorBar" style="width:0%"></div></div>
       <div class="noch-ausstehend" id="monitorAusstehend"></div>
+      <div style="text-align:right;margin-top:0.75rem">
+        <span style="font-size:0.78rem;color:var(--muted)" id="monitorZeit"></span>
+        &nbsp;
+        <button class="btn btn-outline btn-sm" onclick="aktualisiereMonitor()">↻ Aktualisieren</button>
+      </div>
     </div>
     <div class="btn-row">
-      <span style="font-size:0.82rem;color:var(--muted)">Die Abstimmung bleibt offen, bis du sie schließt.</span>
+      <span style="font-size:0.82rem;color:var(--muted)">Automatische Aktualisierung alle 15 Sek.</span>
       <button class="btn btn-danger" onclick="abstimmungSchliessen()">Abstimmung schließen ■</button>
     </div>
   </div>
@@ -450,7 +455,7 @@ function resetAll() {
   kandidaten      = [];
   anwesendeListe  = [];
   memberVotes     = {};
-  if (realtimeSub) { sb.removeChannel(realtimeSub); realtimeSub = null; }
+  if (realtimeSub) { clearInterval(realtimeSub); realtimeSub = null; }
   setRoleBadge('');
   sessionStorage.removeItem('rkc_admin');
 }
@@ -705,14 +710,9 @@ async function sitzungSpeichernUndOeffnen() {
 async function starteMonitor() {
   await aktualisiereMonitor();
 
-  // Echtzeit-Abo: neue Einträge in v_hat_abgestimmt
-  if (realtimeSub) sb.removeChannel(realtimeSub);
-  realtimeSub = sb.channel('monitor')
-    .on('postgres_changes', {
-      event: 'INSERT', schema: 'public', table: 'v_hat_abgestimmt',
-      filter: `sitzung_id=eq.${currentSitzung.id}`
-    }, () => aktualisiereMonitor())
-    .subscribe();
+  // Automatisch alle 15 Sekunden aktualisieren
+  if (realtimeSub) clearInterval(realtimeSub);
+  realtimeSub = setInterval(aktualisiereMonitor, 15000);
 }
 
 async function aktualisiereMonitor() {
@@ -732,11 +732,14 @@ async function aktualisiereMonitor() {
   document.getElementById('monitorAusstehend').innerHTML = offen.length
     ? `<strong>Noch ausstehend:</strong> ${offen.map(m => `${m.vorname} ${m.nachname}`).join(', ')}`
     : `<strong style="color:#1a5230">✓ Alle Mitglieder haben abgestimmt.</strong>`;
+  const jetzt = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const zeitEl = document.getElementById('monitorZeit');
+  if (zeitEl) zeitEl.textContent = `Zuletzt aktualisiert: ${jetzt}`;
 }
 
 async function abstimmungSchliessen() {
   if (!confirm('Abstimmung jetzt schließen? Sie kann danach nicht mehr geöffnet werden.')) return;
-  if (realtimeSub) { sb.removeChannel(realtimeSub); realtimeSub = null; }
+  if (realtimeSub) { clearInterval(realtimeSub); realtimeSub = null; }
   await sb.from('v_sitzungen').update({ status: 'geschlossen' }).eq('id', currentSitzung.id);
   currentSitzung.status = 'geschlossen';
   await zeigeErgebnis();
@@ -875,18 +878,18 @@ async function stimmeAbgeben() {
 
 function abboniereSitzungsEnde() {
   if (realtimeSub) return;
-  realtimeSub = sb.channel('sitzung-ende')
-    .on('postgres_changes', {
-      event: 'UPDATE', schema: 'public', table: 'v_sitzungen',
-      filter: `id=eq.${currentSitzung.id}`
-    }, async payload => {
-      if (payload.new.status === 'geschlossen') {
-        currentSitzung.status = 'geschlossen';
-        sb.removeChannel(realtimeSub); realtimeSub = null;
-        await zeigeErgebnis();
-      }
-    })
-    .subscribe();
+  realtimeSub = setInterval(async () => {
+    const { data } = await sb
+      .from('v_sitzungen')
+      .select('status')
+      .eq('id', currentSitzung.id)
+      .single();
+    if (data?.status === 'geschlossen') {
+      clearInterval(realtimeSub); realtimeSub = null;
+      currentSitzung.status = 'geschlossen';
+      await zeigeErgebnis();
+    }
+  }, 15000);
 }
 
 // ════════════════════════════════════════════════════════════════════════
