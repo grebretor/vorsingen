@@ -287,7 +287,7 @@
     </div>
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="showScreen('s-admin-sitzung')">← Zurück</button>
-      <button class="btn btn-primary" id="btnZuAnwesenheit" onclick="showScreen('s-admin-anwesenheit')" disabled>Weiter zur Anwesenheit →</button>
+      <button class="btn btn-primary" id="btnZuAnwesenheit" onclick="goToAnwesenheit()" disabled>Weiter zur Anwesenheit →</button>
     </div>
   </div>
 
@@ -630,6 +630,10 @@ function renderKandidaten() {
 // ════════════════════════════════════════════════════════════════════════
 // ADMIN – Anwesenheit
 // ════════════════════════════════════════════════════════════════════════
+function goToAnwesenheit() {
+  showScreen('s-admin-anwesenheit');
+  ladeAnwesenheit();
+}
 async function ladeAnwesenheit() {
   document.getElementById('anwAlert').style.display = 'block';
   document.getElementById('anwGrid').style.display  = 'none';
@@ -988,50 +992,78 @@ function ergebnisTag(e) {
 }
 
 function renderErgebnis(ergebnisse, total) {
+  const istAdmin = sessionStorage.getItem('rkc_admin') === '1';
+
   document.getElementById('ergebnisMeta').innerHTML =
-    `Anwesende Mitglieder: <strong>${total}</strong> &nbsp;·&nbsp; Kandidaten: <strong>${kandidaten.length}</strong><br>
-     <small>Rohstimmen (Summe je Zeile = ${total}). Prozente in der entscheidenden Spalte (Ges. / SG). 
-     Zur Leitung werden nur Empfehlungen mitgeteilt (Regel\u00a05).</small>`;
+    `Anwesende Mitglieder: <strong>${total}</strong> &nbsp;·&nbsp; Kandidaten: <strong>${kandidaten.length}</strong>` +
+    (istAdmin ? `<br><small>Rohstimmen (Summe je Zeile = ${total}). Prozente in der entscheidenden Spalte (Ges. / SG). 
+     Zur Leitung werden nur Empfehlungen mitgeteilt (Regel\u00a05).</small>` : '');
 
-  const rows = ergebnisse.map(e => {
-    const { roh: r, nGesamt, nSG, ergebnis } = e;
-    const k = e.kandidat;
-    const pct = (n, sg) => `<div style="font-size:0.7rem;color:var(--muted)">${nGesamt>0?Math.round(n/nGesamt*100)+'%':'–'} / ${nSG>0?Math.round(sg/nSG*100)+'%':'–'}</div>`;
-    const pV = ergebnis==='Vakanz'      ? pct(r.vV,       e.sg.vakanz) : '';
-    const pG = ergebnis==='Gast'        ? pct(e.eff.gast, e.sg.gast)   : '';
-    const pS = ergebnis==='Verstärkung' ? pct(e.eff.verst,e.sg.verst)  : '';
-    return `<tr>
-      <td><strong>${k.name}</strong></td>
-      <td>${badge(k.stimmgruppe)}</td>
-      <td class="center"><strong style="color:#3a4060">${r.vV}</strong>${pV}</td>
-      <td class="center"><strong style="color:#2a5840">${r.vG}</strong>${pG}</td>
-      <td class="center"><strong style="color:#7c5a10">${r.vS}</strong>${pS}</td>
-      <td class="center"><strong style="color:#6a1c1c">${r.vN}</strong></td>
-      <td>${ergebnisTag(e)}</td>
-    </tr>`;
-  }).join('');
-
-  document.getElementById('ergebnisTabelle').innerHTML = `
-    <table class="res-table">
-      <thead><tr>
-        <th>Kandidat/in</th><th>SG</th>
-        <th class="cat-v">Vakanz</th><th class="cat-g">Gast</th>
-        <th class="cat-s">Verstärk.</th><th class="cat-n">Nein</th>
-        <th>Empfehlung</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-
-  document.getElementById('ergebnisBeschreibungen').innerHTML =
-    ergebnisse.map(e => {
-      const col = { 'Vakanz':'#3a4060','Gast':'#2a5840','Verstärkung':'#7c5a10','Nein':'#6a1c1c' };
-      return `<div style="border-left:3px solid ${col[e.ergebnis]};padding:0.6rem 1rem;
-                margin-bottom:0.65rem;background:#faf9f7;border-radius:0 4px 4px 0;
-                font-size:0.86rem;line-height:1.6;">
-        <strong>${e.kandidat.name}</strong> ${badge(e.kandidat.stimmgruppe)}<br>
-        ${generiereText(e)}
-      </div>`;
+  if (istAdmin) {
+    // ── Vollansicht für die Leitung ───────────────────────────────────
+    const rows = ergebnisse.map(e => {
+      const { roh: r, nGesamt, nSG, ergebnis } = e;
+      const k = e.kandidat;
+      const pct = (n, sg) => `<div style="font-size:0.7rem;color:var(--muted)">${nGesamt>0?Math.round(n/nGesamt*100)+'%':'–'} / ${nSG>0?Math.round(sg/nSG*100)+'%':'–'}</div>`;
+      const pV = ergebnis==='Vakanz'      ? pct(r.vV,        e.sg.vakanz) : '';
+      const pG = ergebnis==='Gast'        ? pct(e.eff.gast,  e.sg.gast)   : '';
+      const pS = ergebnis==='Verstärkung' ? pct(e.eff.verst, e.sg.verst)  : '';
+      return `<tr>
+        <td><strong>${k.name}</strong></td>
+        <td>${badge(k.stimmgruppe)}</td>
+        <td class="center"><strong style="color:#3a4060">${r.vV}</strong>${pV}</td>
+        <td class="center"><strong style="color:#2a5840">${r.vG}</strong>${pG}</td>
+        <td class="center"><strong style="color:#7c5a10">${r.vS}</strong>${pS}</td>
+        <td class="center"><strong style="color:#6a1c1c">${r.vN}</strong></td>
+        <td>${ergebnisTag(e)}</td>
+      </tr>`;
     }).join('');
+
+    document.getElementById('ergebnisTabelle').innerHTML = `
+      <table class="res-table">
+        <thead><tr>
+          <th>Kandidat/in</th><th>SG</th>
+          <th class="cat-v">Vakanz</th><th class="cat-g">Gast</th>
+          <th class="cat-s">Verstärk.</th><th class="cat-n">Nein</th>
+          <th>Empfehlung</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    document.getElementById('ergebnisBeschreibungen').innerHTML =
+      ergebnisse.map(e => {
+        const col = { 'Vakanz':'#3a4060','Gast':'#2a5840','Verstärkung':'#7c5a10','Nein':'#6a1c1c' };
+        return `<div style="border-left:3px solid ${col[e.ergebnis]};padding:0.6rem 1rem;
+                  margin-bottom:0.65rem;background:#faf9f7;border-radius:0 4px 4px 0;
+                  font-size:0.86rem;line-height:1.6;">
+          <strong>${e.kandidat.name}</strong> ${badge(e.kandidat.stimmgruppe)}<br>
+          ${generiereText(e)}
+        </div>`;
+      }).join('');
+
+  } else {
+    // ── Gekürzte Ansicht für Mitglieder (nur Kandidat, SG, Empfehlung) ──
+    const rows = ergebnisse.map(e => {
+      const k = e.kandidat;
+      return `<tr>
+        <td><strong>${k.name}</strong></td>
+        <td>${badge(k.stimmgruppe)}</td>
+        <td>${ergebnisTag(e)}</td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('ergebnisTabelle').innerHTML = `
+      <table class="res-table">
+        <thead><tr>
+          <th>Kandidat/in</th>
+          <th>SG</th>
+          <th>Empfehlung</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+
+    document.getElementById('ergebnisBeschreibungen').innerHTML = '';
+  }
 }
 
 // ── Erläuterungstext ──────────────────────────────────────────────────
