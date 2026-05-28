@@ -340,7 +340,10 @@
     </div>
     <div class="btn-row no-print">
       <button class="btn btn-ghost" onclick="showScreen('s-start'); resetAll()">⌂ Startseite</button>
-      <button class="btn btn-primary" onclick="window.print()">🖨️ Drucken</button>
+      <div class="right">
+        <button class="btn btn-outline" id="btnCsvExport" onclick="exportCSV()" style="display:none">📥 CSV</button>
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Drucken</button>
+      </div>
     </div>
   </div>
 
@@ -968,6 +971,7 @@ async function zeigeErgebnis() {
   }));
 
   renderErgebnis(ergebnisse, nGesamt);
+  window._letzteErgebnisse = ergebnisse;
   showScreen('s-ergebnis');
 }
 
@@ -993,6 +997,8 @@ function ergebnisTag(e) {
 
 function renderErgebnis(ergebnisse, total) {
   const istAdmin = sessionStorage.getItem('rkc_admin') === '1';
+  const csvBtn = document.getElementById('btnCsvExport');
+  if (csvBtn) csvBtn.style.display = istAdmin ? 'inline-block' : 'none';
 
   document.getElementById('ergebnisMeta').innerHTML =
     `Anwesende Mitglieder: <strong>${total}</strong> &nbsp;·&nbsp; Kandidaten: <strong>${kandidaten.length}</strong>` +
@@ -1066,7 +1072,39 @@ function renderErgebnis(ergebnisse, total) {
   }
 }
 
-// ── Erläuterungstext ──────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════
+// CSV-EXPORT (nur Leitung)
+// ════════════════════════════════════════════════════════════════════════
+function exportCSV() {
+  const ergebnisse = anwendeRegel4(kandidaten.map(k => {
+    // Ergebnisobjekte aus dem zuletzt berechneten Zustand rekonstruieren
+    // indem wir zeigeErgebnis() nicht nochmal aufrufen, nutzen wir die
+    // gecachten Daten aus dem DOM – einfacher: Tabelle direkt aus
+    // den letzten berechneten Ergebnissen neu aufbauen.
+    return k; // Platzhalter – siehe unten
+  }));
+
+  // Ergebnisse direkt aus der gerenderten Tabelle lesen wäre fehleranfällig;
+  // stattdessen speichern wir das letzte Ergebnis in einer globalen Variable.
+  if (!window._letzteErgebnisse) { alert('Bitte zuerst die Auswertung anzeigen.'); return; }
+
+  const header = ['Name','Stimmgruppe','Vakanz','Gast','Verstärkung','Nein','Empfehlung','Erläuterung'];
+  const rows = window._letzteErgebnisse.map(e => {
+    const { roh: r } = e;
+    const empf = e.regel4Zurueck ? e.ergebnis + ' (zurückgestellt, Regel 4)' : e.ergebnis;
+    const text = generiereText(e).replace(/<[^>]+>/g, '');
+    return [e.kandidat.name, e.kandidat.stimmgruppe,
+      r.vV, r.vG, r.vS, r.vN,
+      empf, `"${text.replace(/"/g, '""')}"`].join(';');
+  });
+
+  const csv  = '\uFEFF' + [header.join(';'), ...rows].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'vorsingen_ergebnis.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
 function bestehtWeg(eff, sgEff, nGesamt, nSG) {
   if (nGesamt === 0) return null;
   const rG = eff/nGesamt, rSG = nSG > 0 ? sgEff/nSG : 0;
