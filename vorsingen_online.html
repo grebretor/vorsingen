@@ -358,13 +358,24 @@
           <option value="">– bitte wählen –</option>
         </select>
       </div>
+      <div class="form-group" id="pinWrap" style="display:none;margin-bottom:1rem">
+        <label>Persönliche PIN</label>
+        <input type="password" id="memberPin" placeholder="PIN eingeben" maxlength="10"
+               inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="alert alert-error" id="pinFehler" style="display:none">
+        Falsche PIN. Bitte versuche es erneut.
+      </div>
+      <div class="alert alert-warn" id="pinNichtGesetzt" style="display:none">
+        Für dieses Mitglied ist keine PIN hinterlegt. Bitte wende dich an die Leitung.
+      </div>
       <div class="alert alert-warn" id="bereitsAbgestimmt" style="display:none">
         Du hast bereits abgestimmt. Bitte warte auf das Ergebnis.
       </div>
     </div>
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="showScreen('s-start')">← Zurück</button>
-      <button class="btn btn-primary" id="btnZurAbstimmung" onclick="startMemberVote()" disabled>Zur Abstimmung →</button>
+      <button class="btn btn-primary" id="btnZurAbstimmung" onclick="pruefePin()" disabled>Zur Abstimmung →</button>
     </div>
   </div>
 
@@ -402,7 +413,7 @@
 // ════════════════════════════════════════════════════════════════════════
 const SUPABASE_URL = 'https://lqfoybhgtlyvnbtuwggi.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_MJUP_gLZccCY-UUlF1p7oQ_JB1hta_g';
-const ADMIN_PASS   = 'saiR';
+const ADMIN_PASS   = 'kl@usdieter240405';
 
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -607,6 +618,9 @@ async function addKandidat() {
 document.getElementById('kName')
   .addEventListener('keydown', e => { if (e.key === 'Enter') addKandidat(); });
 
+document.getElementById('memberPin')
+  .addEventListener('keydown', e => { if (e.key === 'Enter') pruefePin(); });
+
 async function removeKandidat(id) {
   await sb.from('v_kandidaten').delete().eq('id', id);
   kandidaten = kandidaten.filter(k => k.id !== id);
@@ -783,7 +797,7 @@ async function goMemberStart() {
 async function ladeMemberNamen() {
   const { data } = await sb
     .from('v_anwesend')
-    .select('mitglied_id, mitglieder(id, vorname, nachname, stimme)')
+    .select('mitglied_id, mitglieder(id, vorname, nachname, stimme, pin)')
     .eq('sitzung_id', currentSitzung.id);
 
   anwesendeListe = (data || []).map(r => r.mitglieder)
@@ -799,7 +813,15 @@ async function ladeMemberNamen() {
 }
 
 async function pruefeObAbgestimmt(mid) {
-  if (!mid) { document.getElementById('btnZurAbstimmung').disabled = true; return; }
+  // Alle Hinweise zurücksetzen
+  ['bereitsAbgestimmt','pinFehler','pinNichtGesetzt'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById('pinWrap').style.display = 'none';
+  document.getElementById('memberPin').value = '';
+  document.getElementById('btnZurAbstimmung').disabled = true;
+
+  if (!mid) return;
 
   const { data } = await sb
     .from('v_hat_abgestimmt')
@@ -808,19 +830,36 @@ async function pruefeObAbgestimmt(mid) {
     .eq('mitglied_id', mid)
     .limit(1);
 
-  const bereitsAlert = document.getElementById('bereitsAbgestimmt');
-  const btn          = document.getElementById('btnZurAbstimmung');
-
   if (data?.length) {
-    bereitsAlert.style.display = 'block';
-    btn.disabled = true;
-    // Auf Sitzungsende warten
+    document.getElementById('bereitsAbgestimmt').style.display = 'block';
     abboniereSitzungsEnde();
-  } else {
-    bereitsAlert.style.display = 'none';
-    btn.disabled = false;
-    currentMitglied = anwesendeListe.find(m => m.id === mid);
+    return;
   }
+
+  // Mitglied noch nicht abgestimmt – PIN-Feld prüfen
+  currentMitglied = anwesendeListe.find(m => m.id === mid);
+  if (!currentMitglied?.pin) {
+    document.getElementById('pinNichtGesetzt').style.display = 'block';
+    return;
+  }
+
+  // PIN-Feld einblenden
+  document.getElementById('pinWrap').style.display = 'block';
+  document.getElementById('btnZurAbstimmung').disabled = false;
+  setTimeout(() => document.getElementById('memberPin').focus(), 100);
+}
+
+function pruefePin() {
+  const eingabe = document.getElementById('memberPin').value.trim();
+  document.getElementById('pinFehler').style.display = 'none';
+
+  if (eingabe !== String(currentMitglied.pin)) {
+    document.getElementById('pinFehler').style.display = 'block';
+    document.getElementById('memberPin').value = '';
+    document.getElementById('memberPin').focus();
+    return;
+  }
+  startMemberVote();
 }
 
 async function startMemberVote() {
@@ -997,6 +1036,8 @@ function ergebnisTag(e) {
 
 function renderErgebnis(ergebnisse, total) {
   const istAdmin = sessionStorage.getItem('rkc_admin') === '1';
+
+  // CSV-Button nur für Leitung einblenden
   const csvBtn = document.getElementById('btnCsvExport');
   if (csvBtn) csvBtn.style.display = istAdmin ? 'inline-block' : 'none';
 
@@ -1006,7 +1047,6 @@ function renderErgebnis(ergebnisse, total) {
      Zur Leitung werden nur Empfehlungen mitgeteilt (Regel\u00a05).</small>` : '');
 
   if (istAdmin) {
-    // ── Vollansicht für die Leitung ───────────────────────────────────
     const rows = ergebnisse.map(e => {
       const { roh: r, nGesamt, nSG, ergebnis } = e;
       const k = e.kandidat;
@@ -1076,16 +1116,6 @@ function renderErgebnis(ergebnisse, total) {
 // CSV-EXPORT (nur Leitung)
 // ════════════════════════════════════════════════════════════════════════
 function exportCSV() {
-  const ergebnisse = anwendeRegel4(kandidaten.map(k => {
-    // Ergebnisobjekte aus dem zuletzt berechneten Zustand rekonstruieren
-    // indem wir zeigeErgebnis() nicht nochmal aufrufen, nutzen wir die
-    // gecachten Daten aus dem DOM – einfacher: Tabelle direkt aus
-    // den letzten berechneten Ergebnissen neu aufbauen.
-    return k; // Platzhalter – siehe unten
-  }));
-
-  // Ergebnisse direkt aus der gerenderten Tabelle lesen wäre fehleranfällig;
-  // stattdessen speichern wir das letzte Ergebnis in einer globalen Variable.
   if (!window._letzteErgebnisse) { alert('Bitte zuerst die Auswertung anzeigen.'); return; }
 
   const header = ['Name','Stimmgruppe','Vakanz','Gast','Verstärkung','Nein','Empfehlung','Erläuterung'];
