@@ -311,7 +311,8 @@
   <div class="screen" id="s-admin-monitor">
     <div class="card">
       <div class="card-title">Abstimmung läuft</div>
-      <div class="alert alert-ok">✓ Die Abstimmung ist geöffnet. Mitglieder können jetzt abstimmen.</div>
+      <div class="alert alert-ok">✓ Die Abstimmung ist geöffnet. Mitglieder können jetzt abstimmen.
+        &nbsp;·&nbsp; <strong id="monitorPinModus"></strong></div>
       <div class="progress-ring-wrap">
         <div class="zahl" id="monitorZahl">0 / 0</div>
         <div class="label">haben bereits abgestimmt</div>
@@ -375,7 +376,7 @@
     </div>
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="showScreen('s-start')">← Zurück</button>
-      <button class="btn btn-primary" id="btnZurAbstimmung" onclick="pruefePin()" disabled>Zur Abstimmung →</button>
+      <button class="btn btn-primary" id="btnZurAbstimmung" onclick="pinOderWeiter()" disabled>Zur Abstimmung →</button>
     </div>
   </div>
 
@@ -567,9 +568,15 @@ async function ladeSitzungsStatus() {
 }
 
 async function neueSitzungAnlegen() {
+  const pinErforderlich = confirm(
+    'Soll bei dieser Abstimmung eine persönliche PIN erforderlich sein?\n\n' +
+    '✓ OK  →  Mit PIN (empfohlen)\n' +
+    '✗ Abbrechen  →  Ohne PIN'
+  );
+
   const { data, error } = await sb
     .from('v_sitzungen')
-    .insert({ status: 'vorbereitung' })
+    .insert({ status: 'vorbereitung', pin_erforderlich: pinErforderlich })
     .select()
     .single();
   if (error) { alert('Fehler: ' + error.message); return; }
@@ -619,7 +626,7 @@ document.getElementById('kName')
   .addEventListener('keydown', e => { if (e.key === 'Enter') addKandidat(); });
 
 document.getElementById('memberPin')
-  .addEventListener('keydown', e => { if (e.key === 'Enter') pruefePin(); });
+  .addEventListener('keydown', e => { if (e.key === 'Enter') pinOderWeiter(); });
 
 async function removeKandidat(id) {
   await sb.from('v_kandidaten').delete().eq('id', id);
@@ -729,6 +736,8 @@ async function sitzungSpeichernUndOeffnen() {
 // ADMIN – Monitor (Echtzeit)
 // ════════════════════════════════════════════════════════════════════════
 async function starteMonitor() {
+  const pinEl = document.getElementById('monitorPinModus');
+  if (pinEl) pinEl.textContent = currentSitzung.pin_erforderlich ? '🔒 Mit PIN' : '🔓 Ohne PIN';
   await aktualisiereMonitor();
 
   // Automatisch alle 15 Sekunden aktualisieren
@@ -836,8 +845,16 @@ async function pruefeObAbgestimmt(mid) {
     return;
   }
 
-  // Mitglied noch nicht abgestimmt – PIN-Feld prüfen
+  // Mitglied noch nicht abgestimmt – PIN-Einstellung prüfen
   currentMitglied = anwesendeListe.find(m => m.id === mid);
+
+  if (!currentSitzung.pin_erforderlich) {
+    // Ohne PIN direkt freischalten
+    document.getElementById('pinWrap').style.display = 'none';
+    document.getElementById('btnZurAbstimmung').disabled = false;
+    return;
+  }
+
   if (!currentMitglied?.pin) {
     document.getElementById('pinNichtGesetzt').style.display = 'block';
     return;
@@ -847,6 +864,14 @@ async function pruefeObAbgestimmt(mid) {
   document.getElementById('pinWrap').style.display = 'block';
   document.getElementById('btnZurAbstimmung').disabled = false;
   setTimeout(() => document.getElementById('memberPin').focus(), 100);
+}
+
+function pinOderWeiter() {
+  if (!currentSitzung.pin_erforderlich) {
+    startMemberVote();
+  } else {
+    pruefePin();
+  }
 }
 
 function pruefePin() {
