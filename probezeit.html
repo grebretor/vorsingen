@@ -835,6 +835,16 @@ function pinOderWeiter() {
 document.getElementById('memberPin')
   .addEventListener('keydown', e => { if (e.key === 'Enter') pinOderWeiter(); });
 
+// ════════════════════════════════════════════════════════════════════════
+// START: URL-Parameter prüfen
+// ════════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  if (new URLSearchParams(window.location.search).has('mitglied')) {
+    goMemberStart();
+  }
+});
+
+
 function zeigeAbstimmung() {
   currentVote = null;
   abbrechenCountdown();
@@ -976,14 +986,14 @@ async function zeigeErgebnis() {
         ? `Die 2/3-Mehrheit (${pctS(jaGes,nGesamt)}\u202fges.) und das 51\u202f%-Quorum der Stimmgruppe (${pctS(jaSG,nSG)}\u202fSG) wurden erfüllt (Weg\u202fA, Regel\u202f2).`
         : `Die einfache Mehrheit (${pctS(jaGes,nGesamt)}\u202fges.) und das ¾-Quorum der Stimmgruppe (${pctS(jaSG,nSG)}\u202fSG) wurden erfüllt (Weg\u202fB, Regel\u202f3).`;
       erklaerung = `<div class="erklaerung ${klasse}">
-        Von ${nGesamt} anwesenden Mitgliedern (davon ${nSG} aus dem ${kandidatSG}) stimmten
+        Von ${nGesamt} stimmberechtigten Mitgliedern (davon ${nSG} aus dem ${kandidatSG}) stimmten
         <strong>${jaGes}</strong> für die Übernahme und <strong>${neinGes}</strong> dagegen.
         ${wegText}
         <strong>Empfehlung: Übernahme.</strong>
       </div>`;
     } else {
       erklaerung = `<div class="erklaerung ${klasse}">
-        Von ${nGesamt} anwesenden Mitgliedern (davon ${nSG} aus dem ${kandidatSG}) stimmten
+        Von ${nGesamt} stimmberechtigten Mitgliedern (davon ${nSG} aus dem ${kandidatSG}) stimmten
         <strong>${jaGes}</strong> für die Übernahme (${pctS(jaGes,nGesamt)}\u202fges. / ${pctS(jaSG,nSG)}\u202fSG)
         und <strong>${neinGes}</strong> dagegen.
         Weder die 2/3-Mehrheit mit 51\u202f%-SG-Quorum noch die einfache Mehrheit mit 75\u202f%-SG-Quorum wurden erreicht.
@@ -1038,7 +1048,7 @@ async function zeigeErgebnis() {
     <div class="card">
       <div class="card-title">Ergebnis – ${currentSitzung.kandidat_name} ${badge(kandidatSG)}</div>
       <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">
-        Anwesende Mitglieder: <strong>${nGesamt}</strong> &nbsp;·&nbsp;
+        Stimmberechtigte Mitglieder: <strong>${nGesamt}</strong> &nbsp;·&nbsp;
         davon ${kandidatSG}: <strong>${nSG}</strong>
       </p>
       ${ergebnisBox}
