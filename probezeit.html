@@ -398,13 +398,15 @@
           Nein – Ablehnung
         </button>
       </div>
-      <div class="alert alert-warn" id="voteHinweis" style="display:none">
-        Bitte wähle eine Option aus.
+      <div id="countdownWrap" style="display:none;text-align:center;margin-top:0.75rem">
+        <div style="font-size:0.92rem;color:var(--muted);margin-bottom:0.5rem">
+          Stimme wird in <strong id="countdownZahl">3</strong> Sekunden gespeichert …
+        </div>
+        <button class="btn btn-ghost" onclick="abbrechenCountdown()">✕ Abbrechen</button>
       </div>
     </div>
     <div class="btn-row">
-      <button class="btn btn-ghost" onclick="showScreen('s-member-name')">← Zurück</button>
-      <button class="btn btn-primary" id="btnAbgeben" onclick="stimmeAbgeben()">Stimme abgeben ✓</button>
+      <button class="btn btn-ghost" id="btnZurueck" onclick="showScreen('s-member-name')">← Zurück</button>
     </div>
   </div>
 
@@ -844,18 +846,44 @@ function zeigeAbstimmung() {
 }
 
 function selectVote(kat) {
+  // Laufenden Countdown abbrechen falls vorhanden
+  abbrechenCountdown();
+
   currentVote = kat;
   document.getElementById('btnJa').classList.toggle('selected',   kat === 'Ja');
   document.getElementById('btnNein').classList.toggle('selected', kat === 'Nein');
-  document.getElementById('voteHinweis').style.display = 'none';
+
+  // Zurück-Button deaktivieren während Countdown
+  document.getElementById('btnZurueck').disabled = true;
+
+  // Countdown starten
+  let sekunden = 3;
+  document.getElementById('countdownZahl').textContent = sekunden;
+  document.getElementById('countdownWrap').style.display = 'block';
+
+  pollInterval = setInterval(async () => {
+    sekunden--;
+    document.getElementById('countdownZahl').textContent = sekunden;
+    if (sekunden <= 0) {
+      clearInterval(pollInterval); pollInterval = null;
+      await stimmeAbgeben();
+    }
+  }, 1000);
+}
+
+function abbrechenCountdown() {
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  document.getElementById('countdownWrap').style.display = 'none';
+  document.getElementById('btnZurueck').disabled = false;
+  document.getElementById('btnJa').classList.remove('selected');
+  document.getElementById('btnNein').classList.remove('selected');
+  currentVote = null;
 }
 
 async function stimmeAbgeben() {
-  if (!currentVote) {
-    document.getElementById('voteHinweis').style.display = 'block';
-    return;
-  }
-  if (!confirm('Stimme jetzt abgeben? Das kann nicht rückgängig gemacht werden.')) return;
+  document.getElementById('countdownWrap').style.display = 'none';
+  document.getElementById('btnJa').disabled  = true;
+  document.getElementById('btnNein').disabled = true;
 
   const sg = normStimme(currentMitglied.stimme);
 
