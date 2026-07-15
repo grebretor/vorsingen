@@ -193,17 +193,20 @@
     .warten-wrap p { font-size: 0.9rem; color: var(--muted); }
 
     /* ── MOBILE ──────────────────────────────────────────────────────── */
+    /* ── MOBILE HOCHFORMAT ───────────────────────────────────────────── */
     @media (max-width: 480px) and (orientation: portrait) {
       header { padding: 0.8rem 1rem; }
       .container { padding: 0 0.75rem; margin: 0.75rem auto; }
       .card { padding: 1rem; }
       .start-grid { grid-template-columns: 1fr; }
       .form-row { flex-direction: column; }
+      .form-group.wide, .form-group { flex: unset; width: 100%; }
+      .form-row > div:last-child, .form-row .btn { width: 100%; }
       .check-grid { grid-template-columns: repeat(2, 1fr); }
       .vote-buttons { grid-template-columns: 1fr; }
       .btn-row { flex-wrap: wrap; }
       .btn-row .btn, .btn-row .right .btn { width: 100%; }
-      input, select { font-size: 1rem; padding: 0.75rem; }
+      input[type="text"], input[type="password"], select { font-size: 1rem; padding: 0.75rem; }
     }
 
     @media print {
