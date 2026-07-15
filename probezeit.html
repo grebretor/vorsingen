@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<!--
+  ══════════════════════════════════════════════════════════════════════════
+  PROBEZEIT – RIAS Kammerchor Berlin
+  Abstimmung über die Übernahme eines Mitglieds nach der Probezeit.
+  ══════════════════════════════════════════════════════════════════════════
+
+  SUPABASE-SETUP: Folgende 4 Tabellen im SQL-Editor anlegen:
+  ──────────────────────────────────────────────────────────
+  create table p_sitzungen (
+    id                 uuid primary key default gen_random_uuid(),
+    erstellt_am        timestamptz default now(),
+    status             text default 'vorbereitung',
+    kandidat_name      text not null,
+    kandidat_sg        text not null,
+    pin_erforderlich   boolean default true
+  );
+  create table p_anwesend (
+    id          uuid primary key default gen_random_uuid(),
+    sitzung_id  uuid references p_sitzungen(id) on delete cascade,
+    mitglied_id text references mitglieder(id)
+  );
+  create table p_stimmen (
+    id          uuid primary key default gen_random_uuid(),
+    sitzung_id  uuid references p_sitzungen(id) on delete cascade,
+    kategorie   text not null,
+    stimmgruppe text not null
+  );
+  create table p_hat_abgestimmt (
+    id          uuid primary key default gen_random_uuid(),
+    sitzung_id  uuid references p_sitzungen(id) on delete cascade,
+    mitglied_id text references mitglieder(id)
+  );
+
+  RLS-Policies (falls RLS aktiviert):
+  ──────────────────────────────────────────────────────────
+  create policy "anon_all" on p_sitzungen      for all to anon using (true) with check (true);
+  create policy "anon_all" on p_anwesend       for all to anon using (true) with check (true);
+  create policy "anon_all" on p_stimmen        for all to anon using (true) with check (true);
+  create policy "anon_all" on p_hat_abgestimmt for all to anon using (true) with check (true);
+-->
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Probezeit – RIAS Kammerchor Berlin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --ink:    #1b1f24;
+      --paper:  #f4f3f1;
+      --card:   #ffffff;
+      --blue:   #646870;
+      --blue2:  #4a4d54;
+      --gold:   #a07830;
+      --muted:  #767a82;
+      --border: #dcdad6;
+      --ja:     #2a5840;
+      --ja-bg:  #e8f2ec;
+      --nein:   #7c1f1f;
+      --nein-bg:#fce8e8;
+      --s-bg: #fce8e8; --s-col: #8b1c1c;
+      --a-bg: #e8f2ec; --a-col: #1a5230;
+      --t-bg: #e8eaf4; --t-col: #2a3480;
+      --b-bg: #f5efe2; --b-col: #6b4010;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Source Sans 3', sans-serif; background: var(--paper); color: var(--ink); min-height: 100vh; }
+
+    /* ── HEADER ──────────────────────────────────────────────────────── */
+    header { background: var(--blue); color: white; padding: 1rem 1.5rem; display: flex; align-items: center; gap: 1rem; border-bottom: 3px solid var(--gold); box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
+    header .logo { font-family: 'Playfair Display', serif; font-size: 1rem; letter-spacing: 0.04em; line-height: 1.3; }
+    header .logo span { display: block; font-size: 0.68rem; font-family: 'Source Sans 3', sans-serif; font-weight: 300; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.75; }
+    header .role-badge { margin-left: auto; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; background: rgba(255,255,255,0.15); padding: 0.25rem 0.75rem; border-radius: 3px; opacity: 0; transition: opacity 0.3s; }
+    header .role-badge.visible { opacity: 1; }
+
+    /* ── LAYOUT ──────────────────────────────────────────────────────── */
+    .container { max-width: 680px; margin: 1.5rem auto; padding: 0 1.25rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 1.5rem; margin-bottom: 1.25rem; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+    .card-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--blue); margin-bottom: 1.1rem; padding-bottom: 0.65rem; border-bottom: 1px solid var(--border); }
+
+    /* ── KANDIDATEN-BOX ──────────────────────────────────────────────── */
+    .kandidat-box { background: linear-gradient(135deg, #f0efed, #e8e6e1); border: 1px solid var(--border); border-radius: 6px; padding: 1.1rem 1.25rem; margin-bottom: 1.25rem; display: flex; align-items: center; gap: 1rem; }
+    .kandidat-box .name { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--ink); }
+    .kandidat-box .sub  { font-size: 0.82rem; color: var(--muted); margin-top: 0.15rem; }
+
+    /* ── SCREENS ─────────────────────────────────────────────────────── */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ── BUTTONS ─────────────────────────────────────────────────────── */
+    .btn { padding: 0.6rem 1.3rem; border: none; border-radius: 4px; cursor: pointer; font-family: 'Source Sans 3', sans-serif; font-size: 0.92rem; font-weight: 600; letter-spacing: 0.03em; transition: background 0.15s, opacity 0.15s; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--blue); color: white; }
+    .btn-primary:not(:disabled):hover { background: var(--blue2); }
+    .btn-outline { background: transparent; color: var(--blue); border: 1.5px solid var(--blue); }
+    .btn-outline:hover { background: #eef3fa; }
+    .btn-ghost { background: var(--paper); color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: #ede9e0; }
+    .btn-danger { background: #7c1f1f; color: white; }
+    .btn-danger:hover { background: #9c2525; }
+    .btn-sm { padding: 0.25rem 0.7rem; font-size: 0.8rem; }
+    .btn-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; margin-top: 1.1rem; flex-wrap: wrap; }
+    .btn-row .right { display: flex; gap: 0.6rem; }
+
+    /* ── ABSTIMMUNGS-BUTTONS ─────────────────────────────────────────── */
+    .vote-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.25rem 0; }
+    .vote-big { padding: 1.5rem 1rem; border-radius: 8px; font-size: 1rem; font-weight: 600; font-family: 'Source Sans 3', sans-serif; cursor: pointer; border: 2px solid transparent; transition: all 0.15s; text-align: center; line-height: 1.4; }
+    .vote-big .vote-icon { font-size: 1.8rem; display: block; margin-bottom: 0.4rem; }
+    .vote-big.ja  { background: var(--ja-bg);   color: var(--ja);   border-color: #c0ddc8; }
+    .vote-big.nein{ background: var(--nein-bg);  color: var(--nein); border-color: #ddc0c0; }
+    .vote-big.ja.selected  { background: var(--ja);   color: white; border-color: var(--ja);   box-shadow: 0 2px 12px rgba(42,88,64,0.3); }
+    .vote-big.nein.selected{ background: var(--nein);  color: white; border-color: var(--nein); box-shadow: 0 2px 12px rgba(124,31,31,0.3); }
+    .vote-big:hover:not(.selected) { filter: brightness(0.96); }
+
+    /* ── FORMS ───────────────────────────────────────────────────────── */
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.3rem; }
+    .form-row { display: flex; gap: 0.75rem; align-items: flex-end; }
+    .form-row .form-group { flex: 1; }
+    .form-row .form-group.wide { flex: 2; }
+    input[type="text"], input[type="password"], select { width: 100%; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 4px; font-family: 'Source Sans 3', sans-serif; font-size: 0.95rem; background: white; color: var(--ink); transition: border-color 0.15s; }
+    input:focus, select:focus { outline: none; border-color: var(--blue); }
+
+    /* ── BADGE ───────────────────────────────────────────────────────── */
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; }
+    .badge-S { background: var(--s-bg); color: var(--s-col); }
+    .badge-A { background: var(--a-bg); color: var(--a-col); }
+    .badge-T { background: var(--t-bg); color: var(--t-col); }
+    .badge-B { background: var(--b-bg); color: var(--b-col); }
+
+    /* ── ALERTS ──────────────────────────────────────────────────────── */
+    .alert { padding: 0.7rem 1rem; border-radius: 4px; font-size: 0.88rem; margin-bottom: 1rem; line-height: 1.5; }
+    .alert-info  { background: #ededee; color: #3a3d45; border-left: 3px solid var(--blue); }
+    .alert-ok    { background: #e8f2ec; color: #1a5230; border-left: 3px solid var(--ja); }
+    .alert-warn  { background: #fff8e6; color: #7c5800; border-left: 3px solid var(--gold); }
+    .alert-error { background: #fce8e8; color: #8b1a1a; border-left: 3px solid var(--nein); }
+
+    /* ── START-GRID ──────────────────────────────────────────────────── */
+    .start-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem; }
+    .start-card { background: white; border: 1.5px solid var(--border); border-radius: 8px; padding: 1.75rem 1.25rem; text-align: center; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+    .start-card:hover { border-color: var(--blue); box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+    .start-card .icon { font-size: 2rem; margin-bottom: 0.75rem; }
+    .start-card h3 { font-family: 'Playfair Display', serif; font-size: 1rem; color: var(--blue); margin-bottom: 0.4rem; }
+    .start-card p { font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
+
+    /* ── ANWESENHEIT ─────────────────────────────────────────────────── */
+    .sg-label { font-weight: 700; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0.9rem 0 0.4rem; display: flex; align-items: center; gap: 0.4rem; }
+    .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 0.45rem; }
+    .check-item { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 0.9rem; border: 1.5px solid var(--border); border-radius: 5px; cursor: pointer; font-size: 0.88rem; transition: background 0.12s, border-color 0.12s; user-select: none; }
+    .check-item:hover { background: #eeedf0; border-color: var(--blue); }
+    .check-item:has(input:checked) { background: var(--blue); color: white; border-color: var(--blue2); }
+    .check-item input { accent-color: white; width: 1rem; height: 1rem; flex-shrink: 0; }
+
+    /* ── MONITOR ─────────────────────────────────────────────────────── */
+    .progress-bar-track { height: 8px; background: #e0ddd8; border-radius: 4px; margin: 0.75rem 0 1rem; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: var(--blue); border-radius: 4px; transition: width 0.4s; }
+    .monitor-zahl { font-family: 'Playfair Display', serif; font-size: 2.2rem; color: var(--blue); text-align: center; padding: 1rem 0 0.25rem; }
+    .monitor-label { text-align: center; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.25rem; }
+    .noch-ausstehend { font-size: 0.85rem; color: var(--muted); line-height: 1.8; }
+
+    /* ── ERGEBNIS ────────────────────────────────────────────────────── */
+    .ergebnis-box { border-radius: 8px; padding: 1.5rem; text-align: center; margin-bottom: 1.25rem; }
+    .ergebnis-box.uebernommen { background: var(--ja-bg); border: 2px solid var(--ja); }
+    .ergebnis-box.abgelehnt   { background: var(--nein-bg); border: 2px solid var(--nein); }
+    .ergebnis-box .e-icon  { font-size: 2.5rem; margin-bottom: 0.5rem; }
+    .ergebnis-box .e-titel { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 0.25rem; }
+    .ergebnis-box.uebernommen .e-titel { color: var(--ja); }
+    .ergebnis-box.abgelehnt   .e-titel { color: var(--nein); }
+    .ergebnis-box .e-sub   { font-size: 0.85rem; color: var(--muted); }
+
+    /* ── BALKENDIAGRAMM ──────────────────────────────────────────────── */
+    .chart-wrap { margin: 1.25rem 0; }
+    .chart-row { margin-bottom: 0.85rem; }
+    .chart-label { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.3rem; font-weight: 600; }
+    .chart-bar-bg { background: #e8e6e1; border-radius: 4px; height: 28px; overflow: hidden; position: relative; }
+    .chart-bar    { height: 100%; border-radius: 4px; transition: width 0.6s ease; display: flex; align-items: center; padding-left: 0.6rem; font-size: 0.8rem; font-weight: 700; color: white; min-width: 2rem; }
+    .chart-bar.ja   { background: var(--ja); }
+    .chart-bar.nein { background: var(--nein); }
+    .chart-sublabel { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+
+    /* ── ERLÄUTERUNGSTEXT ────────────────────────────────────────────── */
+    .erklaerung { border-radius: 0 4px 4px 0; padding: 0.75rem 1rem; font-size: 0.87rem; line-height: 1.65; margin-top: 1rem; }
+    .erklaerung.uebernommen { background: #f0f7f2; border-left: 3px solid var(--ja); }
+    .erklaerung.abgelehnt   { background: #fdf3f3; border-left: 3px solid var(--nein); }
+
+    /* ── WARTEN ──────────────────────────────────────────────────────── */
+    .warten-wrap { text-align: center; padding: 2.5rem 1rem; }
+    .warten-wrap .icon { font-size: 3rem; margin-bottom: 1rem; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .warten-wrap h2 { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--blue); margin-bottom: 0.5rem; }
+    .warten-wrap p { font-size: 0.9rem; color: var(--muted); }
+
+    /* ── MOBILE ──────────────────────────────────────────────────────── */
+    @media (max-width: 480px) and (orientation: portrait) {
+      header { padding: 0.8rem 1rem; }
+      .container { padding: 0 0.75rem; margin: 0.75rem auto; }
+      .card { padding: 1rem; }
+      .start-grid { grid-template-columns: 1fr; }
+      .form-row { flex-direction: column; }
+      .check-grid { grid-template-columns: repeat(2, 1fr); }
+      .vote-buttons { grid-template-columns: 1fr; }
+      .btn-row { flex-wrap: wrap; }
+      .btn-row .btn, .btn-row .right .btn { width: 100%; }
+      input, select { font-size: 1rem; padding: 0.75rem; }
+    }
+
+    @media print {
+      header, .btn-row, .no-print { display: none !important; }
+      .card { box-shadow: none; }
+      body { background: white; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    RIAS Kammerchor Berlin
+    <span>Probezeit · Abstimmung</span>
+  </div>
+  <div class="role-badge" id="roleBadge"></div>
+</header>
+
+<div class="container">
+
+  <!-- ══ START ══════════════════════════════════════════════════════════ -->
+  <div class="screen active" id="s-start">
+    <div class="card">
+      <div class="card-title">Willkommen</div>
+      <div class="alert alert-warn" id="startAlert" style="display:none"></div>
+      <div class="start-grid">
+        <div class="start-card" onclick="goAdminLogin()">
+          <div class="icon">🎼</div>
+          <h3>Leitung</h3>
+          <p>Abstimmung anlegen, öffnen und auswerten</p>
+        </div>
+        <div class="start-card" onclick="goMemberStart()">
+          <div class="icon">🎵</div>
+          <h3>Mitglied</h3>
+          <p>An der aktuellen Abstimmung teilnehmen</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ADMIN: LOGIN ════════════════════════════════════════════════════ -->
+  <div class="screen" id="s-admin-login">
+    <div class="card">
+      <div class="card-title">Leitung – Anmeldung</div>
+      <div class="form-group">
+        <label>Passwort</label>
+        <input type="password" id="adminPass" placeholder="Passwort eingeben">
+      </div>
+      <div class="alert alert-error" id="loginError" style="display:none">Falsches Passwort.</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-start')">← Zurück</button>
+      <button class="btn btn-primary" onclick="checkLogin()">Anmelden →</button>
+    </div>
+  </div>
+
+  <!-- ══ ADMIN: SITZUNGSVERWALTUNG ══════════════════════════════════════ -->
+  <div class="screen" id="s-admin-sitzung">
+    <div class="card">
+      <div class="card-title">Sitzungsverwaltung</div>
+      <div id="sitzungInfo"></div>
+    </div>
+    <div class="btn-row" id="sitzungBtnRow"></div>
+  </div>
+
+  <!-- ══ ADMIN: NEUE SITZUNG ════════════════════════════════════════════ -->
+  <div class="screen" id="s-admin-neu">
+    <div class="card">
+      <div class="card-title">Neue Abstimmung anlegen</div>
+      <div class="form-row">
+        <div class="form-group wide">
+          <label>Name des Mitglieds</label>
+          <input type="text" id="neuName" placeholder="Vorname Nachname">
+        </div>
+        <div class="form-group">
+          <label>Stimmgruppe</label>
+          <select id="neuSg">
+            <option value="Sopran">Sopran</option>
+            <option value="Alt">Alt</option>
+            <option value="Tenor">Tenor</option>
+            <option value="Bass">Bass</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>PIN-Pflicht</label>
+        <select id="neuPin">
+          <option value="true">Mit persönlicher PIN (empfohlen)</option>
+          <option value="false">Ohne PIN</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-admin-sitzung')">← Zurück</button>
+      <button class="btn btn-primary" onclick="neueSitzungAnlegen()">Anlegen & weiter →</button>
+    </div>
+  </div>
+
+  <!-- ══ ADMIN: ANWESENHEIT ══════════════════════════════════════════════ -->
+  <div class="screen" id="s-admin-anwesenheit">
+    <div class="card">
+      <div class="card-title">Anwesenheit der Mitglieder</div>
+      <div id="anwKandidatBox"></div>
+      <div class="alert alert-info" id="anwAlert">⏳ Mitglieder werden geladen…</div>
+      <div id="anwGrid" style="display:none"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-admin-neu')">← Zurück</button>
+      <div class="right">
+        <span style="font-size:0.85rem;color:var(--muted);align-self:center" id="anwCount"></span>
+        <button class="btn btn-primary" id="btnOeffnen" onclick="sitzungOeffnen()" disabled>Abstimmung öffnen ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ADMIN: MONITOR ═════════════════════════════════════════════════ -->
+  <div class="screen" id="s-admin-monitor">
+    <div class="card">
+      <div class="card-title">Abstimmung läuft</div>
+      <div id="monitorKandidatBox"></div>
+      <div class="alert alert-ok">
+        ✓ Die Abstimmung ist geöffnet.
+        &nbsp;·&nbsp; <strong id="monitorPinModus"></strong>
+      </div>
+      <div class="monitor-zahl" id="monitorZahl">0 / 0</div>
+      <div class="monitor-label">haben bereits abgestimmt</div>
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="monitorBar" style="width:0%"></div></div>
+      <div class="noch-ausstehend" id="monitorAusstehend"></div>
+      <div style="text-align:right;margin-top:0.75rem">
+        <span style="font-size:0.78rem;color:var(--muted)" id="monitorZeit"></span>
+        &nbsp;
+        <button class="btn btn-outline btn-sm" onclick="aktualisiereMonitor()">↻ Aktualisieren</button>
+      </div>
+    </div>
+    <div class="btn-row">
+      <span style="font-size:0.82rem;color:var(--muted)">Automatische Aktualisierung alle 15 Sek.</span>
+      <button class="btn btn-danger" onclick="abstimmungSchliessen()">Abstimmung schließen ■</button>
+    </div>
+  </div>
+
+  <!-- ══ ERGEBNIS (Admin & Mitglied) ════════════════════════════════════ -->
+  <div class="screen" id="s-ergebnis">
+    <div id="ergebnisInhalt"></div>
+    <div class="btn-row no-print">
+      <button class="btn btn-ghost" onclick="showScreen('s-start'); resetAll()">⌂ Startseite</button>
+      <div class="right">
+        <button class="btn btn-outline" id="btnCsv" style="display:none" onclick="exportCSV()">📥 CSV</button>
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Drucken</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MITGLIED: NAME & PIN ═══════════════════════════════════════════ -->
+  <div class="screen" id="s-member-name">
+    <div class="card">
+      <div class="card-title">Wer bist du?</div>
+      <div id="memberKandidatBox"></div>
+      <div class="form-group">
+        <label>Name auswählen</label>
+        <select id="memberSelect">
+          <option value="">– bitte wählen –</option>
+        </select>
+      </div>
+      <div class="form-group" id="pinWrap" style="display:none">
+        <label>Persönliche PIN</label>
+        <input type="password" id="memberPin" placeholder="PIN eingeben"
+               maxlength="10" inputmode="numeric" autocomplete="off">
+      </div>
+      <div class="alert alert-error" id="pinFehler"        style="display:none">Falsche PIN. Bitte erneut versuchen.</div>
+      <div class="alert alert-warn"  id="pinNichtGesetzt"  style="display:none">Keine PIN hinterlegt – bitte wende dich an die Leitung.</div>
+      <div class="alert alert-warn"  id="bereitsAbgestimmt"style="display:none">Du hast bereits abgestimmt. Bitte warte auf das Ergebnis.</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-start')">← Zurück</button>
+      <button class="btn btn-primary" id="btnWeiter" onclick="pinOderWeiter()" disabled>Weiter →</button>
+    </div>
+  </div>
+
+  <!-- ══ MITGLIED: ABSTIMMUNG ═══════════════════════════════════════════ -->
+  <div class="screen" id="s-member-vote">
+    <div class="card">
+      <div class="card-title">Deine Stimme</div>
+      <div id="voteKandidatBox"></div>
+      <div class="vote-buttons">
+        <button class="vote-big ja" id="btnJa" onclick="selectVote('Ja')">
+          <span class="vote-icon">✓</span>
+          Ja – Übernahme
+        </button>
+        <button class="vote-big nein" id="btnNein" onclick="selectVote('Nein')">
+          <span class="vote-icon">✗</span>
+          Nein – Ablehnung
+        </button>
+      </div>
+      <div class="alert alert-warn" id="voteHinweis" style="display:none">
+        Bitte wähle eine Option aus.
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-member-name')">← Zurück</button>
+      <button class="btn btn-primary" id="btnAbgeben" onclick="stimmeAbgeben()">Stimme abgeben ✓</button>
+    </div>
+  </div>
+
+  <!-- ══ MITGLIED: WARTEN ═══════════════════════════════════════════════ -->
+  <div class="screen" id="s-member-warten">
+    <div class="card">
+      <div class="warten-wrap">
+        <div class="icon">⏳</div>
+        <h2>Danke!</h2>
+        <p>Deine Stimme wurde anonym gespeichert.<br>Warte bitte, bis die Leitung die Abstimmung schließt.</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ════════════════════════════════════════════════════════════════════════
+// KONFIGURATION
+// ════════════════════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://lqfoybhgtlyvnbtuwggi.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_MJUP_gLZccCY-UUlF1p7oQ_JB1hta_g';
+const ADMIN_PASS   = 'kl@usdieter240405';
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { persistSession: false }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════════════
+const STIMMGRUPPEN = ['Sopran', 'Alt', 'Tenor', 'Bass'];
+
+let currentSitzung  = null;
+let currentMitglied = null;
+let alleMitglieder  = [];
+let anwesendeListe  = [];
+let currentVote     = null;   // 'Ja' | 'Nein'
+let pollInterval    = null;
+
+// ════════════════════════════════════════════════════════════════════════
+// HILFSFUNKTIONEN
+// ════════════════════════════════════════════════════════════════════════
+function badge(sg) {
+  const k = sg ? sg[0].toUpperCase() : '?';
+  return `<span class="badge badge-${k}">${k}</span>`;
+}
+
+function normStimme(s) {
+  if (!s) return 'Bass';
+  const v = s.trim().toLowerCase();
+  if (v.startsWith('s')) return 'Sopran';
+  if (v.startsWith('a')) return 'Alt';
+  if (v.startsWith('t')) return 'Tenor';
+  return 'Bass';
+}
+
+function kandidatBox(name, sg) {
+  return `<div class="kandidat-box">
+    <div>
+      <div class="name">${name}</div>
+      <div class="sub">Stimmgruppe: ${sg} &nbsp;${badge(sg)}</div>
+    </div>
+  </div>`;
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function setRoleBadge(text) {
+  const el = document.getElementById('roleBadge');
+  el.textContent = text;
+  el.classList.toggle('visible', !!text);
+}
+
+function resetAll() {
+  currentSitzung = currentMitglied = currentVote = null;
+  alleMitglieder = []; anwesendeListe = [];
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  setRoleBadge('');
+  sessionStorage.removeItem('rkc_admin');
+  document.getElementById('startAlert').style.display = 'none';
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – LOGIN
+// ════════════════════════════════════════════════════════════════════════
+function goAdminLogin() {
+  if (sessionStorage.getItem('rkc_admin') === '1') {
+    adminNachLogin();
+  } else {
+    showScreen('s-admin-login');
+    setTimeout(() => document.getElementById('adminPass').focus(), 100);
+  }
+}
+
+document.getElementById('adminPass')
+  .addEventListener('keydown', e => { if (e.key === 'Enter') checkLogin(); });
+
+function checkLogin() {
+  if (document.getElementById('adminPass').value === ADMIN_PASS) {
+    sessionStorage.setItem('rkc_admin', '1');
+    document.getElementById('adminPass').value = '';
+    document.getElementById('loginError').style.display = 'none';
+    adminNachLogin();
+  } else {
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+async function adminNachLogin() {
+  setRoleBadge('Leitung');
+  showScreen('s-admin-sitzung');
+  await ladeSitzungsStatus();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – SITZUNGSVERWALTUNG
+// ════════════════════════════════════════════════════════════════════════
+async function checkActiveSitzung() {
+  const { data } = await sb
+    .from('p_sitzungen')
+    .select('*')
+    .in('status', ['vorbereitung', 'offen'])
+    .order('erstellt_am', { ascending: false })
+    .limit(1);
+  return data?.[0] || null;
+}
+
+async function ladeSitzungsStatus() {
+  const sitzung = await checkActiveSitzung();
+  const infoEl  = document.getElementById('sitzungInfo');
+  const btnEl   = document.getElementById('sitzungBtnRow');
+
+  if (!sitzung) {
+    const { data: letzte } = await sb
+      .from('p_sitzungen').select('*').eq('status', 'geschlossen')
+      .order('erstellt_am', { ascending: false }).limit(1);
+    infoEl.innerHTML = `
+      <div class="alert alert-info">Keine aktive Abstimmung vorhanden.</div>
+      ${letzte?.[0] ? `<p style="font-size:0.85rem;color:var(--muted)">Letzte Abstimmung: ${new Date(letzte[0].erstellt_am).toLocaleDateString('de-DE')} – ${letzte[0].kandidat_name}</p>` : ''}`;
+    btnEl.innerHTML = `<span></span>
+      <button class="btn btn-primary" onclick="showScreen('s-admin-neu')">+ Neue Abstimmung anlegen</button>`;
+
+  } else if (sitzung.status === 'vorbereitung') {
+    currentSitzung = sitzung;
+    infoEl.innerHTML = `
+      <div class="alert alert-warn">Abstimmung in Vorbereitung – noch nicht geöffnet.</div>
+      ${kandidatBox(sitzung.kandidat_name, sitzung.kandidat_sg)}`;
+    btnEl.innerHTML = `
+      <button class="btn btn-danger btn-sm" onclick="sitzungLoeschen()">Löschen</button>
+      <button class="btn btn-primary" onclick="goToAnwesenheit()">Anwesenheit & Öffnen →</button>`;
+
+  } else if (sitzung.status === 'offen') {
+    currentSitzung = sitzung;
+    await ladeAnwesenheitFuerSitzung();
+    infoEl.innerHTML = `
+      <div class="alert alert-ok">✓ Abstimmung läuft.</div>
+      ${kandidatBox(sitzung.kandidat_name, sitzung.kandidat_sg)}`;
+    btnEl.innerHTML = `<span></span>
+      <button class="btn btn-primary" onclick="showScreen('s-admin-monitor'); starteMonitor()">Zum Monitor →</button>`;
+  }
+}
+
+async function neueSitzungAnlegen() {
+  const name = document.getElementById('neuName').value.trim();
+  const sg   = document.getElementById('neuSg').value;
+  const pin  = document.getElementById('neuPin').value === 'true';
+  if (!name) { alert('Bitte Name eingeben.'); return; }
+
+  const { data, error } = await sb
+    .from('p_sitzungen')
+    .insert({ kandidat_name: name, kandidat_sg: sg, status: 'vorbereitung', pin_erforderlich: pin })
+    .select().single();
+  if (error) { alert('Fehler: ' + error.message); return; }
+  currentSitzung = data;
+  document.getElementById('neuName').value = '';
+  goToAnwesenheit();
+}
+
+async function sitzungLoeschen() {
+  if (!confirm('Abstimmung wirklich löschen?')) return;
+  await sb.from('p_sitzungen').delete().eq('id', currentSitzung.id);
+  currentSitzung = null;
+  await ladeSitzungsStatus();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – ANWESENHEIT
+// ════════════════════════════════════════════════════════════════════════
+function goToAnwesenheit() {
+  showScreen('s-admin-anwesenheit');
+  document.getElementById('anwKandidatBox').innerHTML =
+    kandidatBox(currentSitzung.kandidat_name, currentSitzung.kandidat_sg);
+  ladeAnwesenheit();
+}
+
+async function ladeAnwesenheit() {
+  document.getElementById('anwAlert').style.display = 'block';
+  document.getElementById('anwGrid').style.display  = 'none';
+
+  const { data, error } = await sb
+    .from('mitglieder')
+    .select('id, vorname, nachname, stimme')
+    .order('stimme').order('nachname');
+
+  if (error) {
+    const el = document.getElementById('anwAlert');
+    el.className = 'alert alert-error';
+    el.textContent = '❌ ' + error.message;
+    return;
+  }
+  alleMitglieder = data;
+  document.getElementById('anwAlert').style.display = 'none';
+  renderAnwesenheit();
+}
+
+async function ladeAnwesenheitFuerSitzung() {
+  const { data } = await sb
+    .from('p_anwesend')
+    .select('mitglied_id, mitglieder(id, vorname, nachname, stimme)')
+    .eq('sitzung_id', currentSitzung.id);
+  anwesendeListe = (data || []).map(r => r.mitglieder);
+}
+
+function renderAnwesenheit() {
+  const grouped = {};
+  STIMMGRUPPEN.forEach(sg => { grouped[sg] = []; });
+  alleMitglieder.forEach(m => grouped[normStimme(m.stimme)]?.push(m));
+
+  const grid = document.getElementById('anwGrid');
+  grid.innerHTML = STIMMGRUPPEN.map(sg => {
+    if (!grouped[sg].length) return '';
+    return `<div class="sg-label">${badge(sg)} ${sg}</div>
+      <div class="check-grid" style="margin-bottom:0.5rem">
+        ${grouped[sg].map(m => `
+          <label class="check-item">
+            <input type="checkbox" value="${m.id}" onchange="updateAnwCount()">
+            ${m.vorname} ${m.nachname}
+          </label>`).join('')}
+      </div>`;
+  }).join('');
+  grid.style.display = 'block';
+  updateAnwCount();
+}
+
+function updateAnwCount() {
+  const n = document.querySelectorAll('#anwGrid input:checked').length;
+  document.getElementById('anwCount').textContent = `${n} anwesend`;
+  document.getElementById('btnOeffnen').disabled = n === 0;
+}
+
+async function sitzungOeffnen() {
+  const checked = [...document.querySelectorAll('#anwGrid input:checked')].map(c => c.value);
+  if (!checked.length) return;
+
+  await sb.from('p_anwesend').delete().eq('sitzung_id', currentSitzung.id);
+  await sb.from('p_anwesend').insert(
+    checked.map(mid => ({ sitzung_id: currentSitzung.id, mitglied_id: mid }))
+  );
+  await sb.from('p_sitzungen').update({ status: 'offen' }).eq('id', currentSitzung.id);
+  currentSitzung.status = 'offen';
+  await ladeAnwesenheitFuerSitzung();
+
+  document.getElementById('monitorKandidatBox').innerHTML =
+    kandidatBox(currentSitzung.kandidat_name, currentSitzung.kandidat_sg);
+  showScreen('s-admin-monitor');
+  starteMonitor();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – MONITOR
+// ════════════════════════════════════════════════════════════════════════
+async function starteMonitor() {
+  document.getElementById('monitorPinModus').textContent =
+    currentSitzung.pin_erforderlich ? '🔒 Mit PIN' : '🔓 Ohne PIN';
+  await aktualisiereMonitor();
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(aktualisiereMonitor, 15000);
+}
+
+async function aktualisiereMonitor() {
+  const { data: hat } = await sb
+    .from('p_hat_abgestimmt').select('mitglied_id')
+    .eq('sitzung_id', currentSitzung.id);
+
+  const abgestimmtIds = new Set((hat || []).map(r => r.mitglied_id));
+  const total  = anwesendeListe.length;
+  const fertig = abgestimmtIds.size;
+  const offen  = anwesendeListe.filter(m => !abgestimmtIds.has(m.id));
+  const pct    = total > 0 ? Math.round(fertig / total * 100) : 0;
+
+  document.getElementById('monitorZahl').textContent = `${fertig} / ${total}`;
+  document.getElementById('monitorBar').style.width  = pct + '%';
+  document.getElementById('monitorAusstehend').innerHTML = offen.length
+    ? `<strong>Noch ausstehend:</strong> ${offen.map(m => `${m.vorname} ${m.nachname}`).join(', ')}`
+    : `<strong style="color:var(--ja)">✓ Alle Mitglieder haben abgestimmt.</strong>`;
+  const jetzt = new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  document.getElementById('monitorZeit').textContent = `Zuletzt aktualisiert: ${jetzt}`;
+}
+
+async function abstimmungSchliessen() {
+  if (!confirm('Abstimmung jetzt schließen?')) return;
+  if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  await sb.from('p_sitzungen').update({ status: 'geschlossen' }).eq('id', currentSitzung.id);
+  currentSitzung.status = 'geschlossen';
+  await zeigeErgebnis();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// MITGLIED – FLOW
+// ════════════════════════════════════════════════════════════════════════
+async function goMemberStart() {
+  setRoleBadge('Mitglied');
+  const sitzung = await checkActiveSitzung();
+  const alertEl = document.getElementById('startAlert');
+
+  if (!sitzung || sitzung.status === 'vorbereitung') {
+    alertEl.textContent = 'Keine aktive Abstimmung – bitte warte auf die Leitung.';
+    alertEl.style.display = 'block';
+    return;
+  }
+
+  currentSitzung = sitzung;
+  await ladeMemberNamen();
+  showScreen('s-member-name');
+}
+
+async function ladeMemberNamen() {
+  const { data } = await sb
+    .from('p_anwesend')
+    .select('mitglied_id, mitglieder(id, vorname, nachname, stimme, pin)')
+    .eq('sitzung_id', currentSitzung.id);
+
+  anwesendeListe = (data || []).map(r => r.mitglieder)
+    .sort((a, b) => a.nachname.localeCompare(b.nachname, 'de'));
+
+  document.getElementById('memberKandidatBox').innerHTML =
+    kandidatBox(currentSitzung.kandidat_name, currentSitzung.kandidat_sg);
+
+  const sel = document.getElementById('memberSelect');
+  sel.innerHTML = `<option value="">– bitte wählen –</option>` +
+    anwesendeListe.map(m =>
+      `<option value="${m.id}">${m.vorname} ${m.nachname}</option>`
+    ).join('');
+  sel.onchange = () => pruefeObAbgestimmt(sel.value);
+  document.getElementById('btnWeiter').disabled = true;
+}
+
+async function pruefeObAbgestimmt(mid) {
+  ['bereitsAbgestimmt','pinFehler','pinNichtGesetzt'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById('pinWrap').style.display = 'none';
+  document.getElementById('memberPin').value = '';
+  document.getElementById('btnWeiter').disabled = true;
+  if (!mid) return;
+
+  const { data } = await sb
+    .from('p_hat_abgestimmt').select('id')
+    .eq('sitzung_id', currentSitzung.id).eq('mitglied_id', mid).limit(1);
+
+  if (data?.length) {
+    document.getElementById('bereitsAbgestimmt').style.display = 'block';
+    starteWartenAufEnde();
+    return;
+  }
+
+  currentMitglied = anwesendeListe.find(m => m.id === mid);
+
+  if (!currentSitzung.pin_erforderlich) {
+    document.getElementById('btnWeiter').disabled = false;
+    return;
+  }
+  if (!currentMitglied?.pin) {
+    document.getElementById('pinNichtGesetzt').style.display = 'block';
+    return;
+  }
+  document.getElementById('pinWrap').style.display = 'block';
+  document.getElementById('btnWeiter').disabled = false;
+  setTimeout(() => document.getElementById('memberPin').focus(), 100);
+}
+
+function pinOderWeiter() {
+  if (!currentSitzung.pin_erforderlich) {
+    zeigeAbstimmung();
+    return;
+  }
+  const eingabe = document.getElementById('memberPin').value.trim();
+  if (eingabe !== String(currentMitglied.pin)) {
+    document.getElementById('pinFehler').style.display = 'block';
+    document.getElementById('memberPin').value = '';
+    document.getElementById('memberPin').focus();
+    return;
+  }
+  document.getElementById('pinFehler').style.display = 'none';
+  zeigeAbstimmung();
+}
+
+document.getElementById('memberPin')
+  .addEventListener('keydown', e => { if (e.key === 'Enter') pinOderWeiter(); });
+
+function zeigeAbstimmung() {
+  currentVote = null;
+  document.getElementById('btnJa').classList.remove('selected');
+  document.getElementById('btnNein').classList.remove('selected');
+  document.getElementById('voteHinweis').style.display = 'none';
+  document.getElementById('voteKandidatBox').innerHTML =
+    kandidatBox(currentSitzung.kandidat_name, currentSitzung.kandidat_sg);
+  showScreen('s-member-vote');
+}
+
+function selectVote(kat) {
+  currentVote = kat;
+  document.getElementById('btnJa').classList.toggle('selected',   kat === 'Ja');
+  document.getElementById('btnNein').classList.toggle('selected', kat === 'Nein');
+  document.getElementById('voteHinweis').style.display = 'none';
+}
+
+async function stimmeAbgeben() {
+  if (!currentVote) {
+    document.getElementById('voteHinweis').style.display = 'block';
+    return;
+  }
+  if (!confirm('Stimme jetzt abgeben? Das kann nicht rückgängig gemacht werden.')) return;
+
+  const sg = normStimme(currentMitglied.stimme);
+
+  const { error: e1 } = await sb.from('p_stimmen').insert({
+    sitzung_id: currentSitzung.id,
+    kategorie:  currentVote,
+    stimmgruppe: sg
+  });
+  if (e1) { alert('Fehler beim Speichern: ' + e1.message); return; }
+
+  const { error: e2 } = await sb.from('p_hat_abgestimmt').insert({
+    sitzung_id:  currentSitzung.id,
+    mitglied_id: currentMitglied.id
+  });
+  if (e2) { alert('Fehler: ' + e2.message); return; }
+
+  showScreen('s-member-warten');
+  starteWartenAufEnde();
+}
+
+function starteWartenAufEnde() {
+  if (pollInterval) return;
+  pollInterval = setInterval(async () => {
+    const { data } = await sb
+      .from('p_sitzungen').select('status').eq('id', currentSitzung.id).single();
+    if (data?.status === 'geschlossen') {
+      clearInterval(pollInterval); pollInterval = null;
+      currentSitzung.status = 'geschlossen';
+      await zeigeErgebnis();
+    }
+  }, 15000);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// AUSWERTUNG
+// ════════════════════════════════════════════════════════════════════════
+async function zeigeErgebnis() {
+  const { data: stimmenData } = await sb
+    .from('p_stimmen').select('kategorie, stimmgruppe')
+    .eq('sitzung_id', currentSitzung.id);
+
+  if (!anwesendeListe.length) await ladeAnwesenheitFuerSitzung();
+
+  const nGesamt = anwesendeListe.length;
+  const kandidatSG = currentSitzung.kandidat_sg;
+
+  // Rohauszählung
+  let jaGes = 0, neinGes = 0, jaSG = 0, neinSG = 0;
+  (stimmenData || []).forEach(s => {
+    const inSG = normStimme(s.stimmgruppe) === kandidatSG;
+    if (s.kategorie === 'Ja')   { jaGes++;   if (inSG) jaSG++;   }
+    else                         { neinGes++; if (inSG) neinSG++; }
+  });
+
+  const nSG   = anwesendeListe.filter(m => normStimme(m.stimme) === kandidatSG).length;
+  const rG    = nGesamt > 0 ? jaGes / nGesamt : 0;
+  const rSG   = nSG     > 0 ? jaSG  / nSG     : 0;
+  const wegA  = rG >= 2/3  && rSG >= 0.51;
+  const wegB  = rG >  0.5  && rSG >= 0.75;
+  const uebernommen = wegA || wegB;
+  const weg   = wegA ? 'A' : wegB ? 'B' : null;
+
+  const pct   = (n, d) => d > 0 ? Math.round(n/d*100) : 0;
+  const pctS  = (n, d) => d > 0 ? Math.round(n/d*100) + '\u202f%' : '–';
+
+  const istAdmin = sessionStorage.getItem('rkc_admin') === '1';
+
+  // ── Ergebnis-Box ──────────────────────────────────────────────────
+  const ergebnisBox = uebernommen
+    ? `<div class="ergebnis-box uebernommen">
+        <div class="e-icon">🎉</div>
+        <div class="e-titel">${currentSitzung.kandidat_name} wird übernommen</div>
+        <div class="e-sub">Empfehlung: Übernahme in den regulären Chorbetrieb</div>
+       </div>`
+    : `<div class="ergebnis-box abgelehnt">
+        <div class="e-icon">—</div>
+        <div class="e-titel">Probezeit wird nicht verlängert</div>
+        <div class="e-sub">Empfehlung: Beendigung des Dienstverhältnisses</div>
+       </div>`;
+
+  // ── Erläuterungstext ───────────────────────────────────────────────
+  let erklaerung = '';
+  if (istAdmin) {
+    const klasse = uebernommen ? 'uebernommen' : 'abgelehnt';
+    if (uebernommen) {
+      const wegText = weg === 'A'
+        ? `Die 2/3-Mehrheit (${pctS(jaGes,nGesamt)}\u202fges.) und das 51\u202f%-Quorum der Stimmgruppe (${pctS(jaSG,nSG)}\u202fSG) wurden erfüllt (Weg\u202fA, Regel\u202f2).`
+        : `Die einfache Mehrheit (${pctS(jaGes,nGesamt)}\u202fges.) und das ¾-Quorum der Stimmgruppe (${pctS(jaSG,nSG)}\u202fSG) wurden erfüllt (Weg\u202fB, Regel\u202f3).`;
+      erklaerung = `<div class="erklaerung ${klasse}">
+        Von ${nGesamt} anwesenden Mitgliedern (davon ${nSG} aus dem ${kandidatSG}) stimmten
+        <strong>${jaGes}</strong> für die Übernahme und <strong>${neinGes}</strong> dagegen.
+        ${wegText}
+        <strong>Empfehlung: Übernahme.</strong>
+      </div>`;
+    } else {
+      erklaerung = `<div class="erklaerung ${klasse}">
+        Von ${nGesamt} anwesenden Mitgliedern (davon ${nSG} aus dem ${kandidatSG}) stimmten
+        <strong>${jaGes}</strong> für die Übernahme (${pctS(jaGes,nGesamt)}\u202fges. / ${pctS(jaSG,nSG)}\u202fSG)
+        und <strong>${neinGes}</strong> dagegen.
+        Weder die 2/3-Mehrheit mit 51\u202f%-SG-Quorum noch die einfache Mehrheit mit 75\u202f%-SG-Quorum wurden erreicht.
+        <strong>Empfehlung: Ablehnung.</strong>
+      </div>`;
+    }
+  }
+
+  // ── Balkendiagramm (nur für Leitung) ──────────────────────────────
+  let diagramm = '';
+  if (istAdmin) {
+    const jaGesP  = pct(jaGes,  nGesamt);
+    const jaSGP   = pct(jaSG,   nSG);
+    const neinGesP= pct(neinGes, nGesamt);
+    const neinSGP = pct(nSG > 0 ? nSG - jaSG : 0, nSG);
+
+    diagramm = `
+      <div class="card">
+        <div class="card-title">Stimmverteilung</div>
+        <div class="chart-wrap">
+          <div class="chart-row">
+            <div class="chart-label"><span>Ja – Gesamt</span><span>${jaGes} von ${nGesamt}</span></div>
+            <div class="chart-bar-bg">
+              <div class="chart-bar ja" style="width:${jaGesP}%">${jaGesP > 8 ? jaGesP+'%' : ''}</div>
+            </div>
+            <div class="chart-sublabel">Schwelle Weg A: 67\u202f% &nbsp;·&nbsp; Weg B: 51\u202f%</div>
+          </div>
+          <div class="chart-row">
+            <div class="chart-label"><span>Ja – ${kandidatSG}</span><span>${jaSG} von ${nSG}</span></div>
+            <div class="chart-bar-bg">
+              <div class="chart-bar ja" style="width:${jaSGP}%">${jaSGP > 8 ? jaSGP+'%' : ''}</div>
+            </div>
+            <div class="chart-sublabel">Schwelle Weg A: 51\u202f% &nbsp;·&nbsp; Weg B: 75\u202f%</div>
+          </div>
+          <div class="chart-row" style="margin-top:0.5rem">
+            <div class="chart-label"><span>Nein – Gesamt</span><span>${neinGes} von ${nGesamt}</span></div>
+            <div class="chart-bar-bg">
+              <div class="chart-bar nein" style="width:${neinGesP}%">${neinGesP > 8 ? neinGesP+'%' : ''}</div>
+            </div>
+          </div>
+          <div class="chart-row">
+            <div class="chart-label"><span>Nein – ${kandidatSG}</span><span>${nSG-jaSG} von ${nSG}</span></div>
+            <div class="chart-bar-bg">
+              <div class="chart-bar nein" style="width:${neinSGP}%">${neinSGP > 8 ? neinSGP+'%' : ''}</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('ergebnisInhalt').innerHTML = `
+    <div class="card">
+      <div class="card-title">Ergebnis – ${currentSitzung.kandidat_name} ${badge(kandidatSG)}</div>
+      <p style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem">
+        Anwesende Mitglieder: <strong>${nGesamt}</strong> &nbsp;·&nbsp;
+        davon ${kandidatSG}: <strong>${nSG}</strong>
+      </p>
+      ${ergebnisBox}
+      ${erklaerung}
+    </div>
+    ${diagramm}`;
+
+  document.getElementById('btnCsv').style.display = istAdmin ? 'inline-block' : 'none';
+
+  // Export-Daten für CSV merken
+  window._exportDaten = { jaGes, neinGes, jaSG, nSG, nGesamt, uebernommen, weg,
+    name: currentSitzung.kandidat_name, sg: kandidatSG };
+
+  showScreen('s-ergebnis');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// CSV-EXPORT
+// ════════════════════════════════════════════════════════════════════════
+function exportCSV() {
+  const d = window._exportDaten;
+  if (!d) return;
+  const pctS = (n, t) => t > 0 ? Math.round(n/t*100) + ' %' : '–';
+  const empf = d.uebernommen ? 'Übernahme' : 'Ablehnung';
+  const wegT = d.weg ? `Weg ${d.weg}` : '–';
+  const lines = [
+    ['Kandidat/in', 'Stimmgruppe', 'Anwesend gesamt', `Anwesend ${d.sg}`,
+     'Ja gesamt', `Ja ${d.sg}`, 'Nein gesamt', `Nein ${d.sg}`,
+     '% Ja ges.', `% Ja ${d.sg}`, 'Weg', 'Empfehlung'].join(';'),
+    [d.name, d.sg, d.nGesamt, d.nSG,
+     d.jaGes, d.jaSG, d.neinGes, d.nSG - d.jaSG,
+     pctS(d.jaGes, d.nGesamt), pctS(d.jaSG, d.nSG),
+     wegT, empf].join(';')
+  ];
+  const csv  = '\uFEFF' + lines.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `probezeit_${d.name.replace(/\s+/g,'_')}.csv`; a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
