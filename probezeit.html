@@ -549,9 +549,16 @@ async function ladeSitzungsStatus() {
       .order('erstellt_am', { ascending: false }).limit(1);
     infoEl.innerHTML = `
       <div class="alert alert-info">Keine aktive Abstimmung vorhanden.</div>
-      ${letzte?.[0] ? `<p style="font-size:0.85rem;color:var(--muted)">Letzte Abstimmung: ${new Date(letzte[0].erstellt_am).toLocaleDateString('de-DE')} – ${letzte[0].kandidat_name}</p>` : ''}`;
-    btnEl.innerHTML = `<span></span>
-      <button class="btn btn-primary" onclick="showScreen('s-admin-neu')">+ Neue Abstimmung anlegen</button>`;
+      ${letzte?.[0] ? `
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.5rem">
+          Letzte Abstimmung: ${new Date(letzte[0].erstellt_am).toLocaleDateString('de-DE')} –
+          <strong>${letzte[0].kandidat_name}</strong>
+        </p>` : ''}`;
+    btnEl.innerHTML = `
+      <div class="right">
+        ${letzte?.[0] ? `<button class="btn btn-outline" onclick="ladeLetztesErgebnis('${letzte[0].id}')">📋 Letzte Auswertung anzeigen</button>` : '<span></span>'}
+        <button class="btn btn-primary" onclick="showScreen('s-admin-neu')">+ Neue Abstimmung anlegen</button>
+      </div>`;
 
   } else if (sitzung.status === 'vorbereitung') {
     currentSitzung = sitzung;
@@ -715,6 +722,21 @@ async function abstimmungSchliessen() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
   await sb.from('p_sitzungen').update({ status: 'geschlossen' }).eq('id', currentSitzung.id);
   currentSitzung.status = 'geschlossen';
+  await zeigeErgebnis();
+  // Erinnerung: Ergebnis sichern
+  setTimeout(() => {
+    alert('Tipp: Bitte jetzt das Ergebnis drucken (🖨️) oder als CSV exportieren (📥), ' +
+          'bevor Sie die Seite verlassen. Das Ergebnis kann jederzeit über ' +
+          '"Letzte Auswertung anzeigen" in der Sitzungsverwaltung erneut abgerufen werden.');
+  }, 500);
+}
+
+async function ladeLetztesErgebnis(sitzungId) {
+  const { data: sitzung } = await sb
+    .from('p_sitzungen').select('*').eq('id', sitzungId).single();
+  if (!sitzung) { alert('Sitzung nicht gefunden.'); return; }
+  currentSitzung = sitzung;
+  await ladeAnwesenheitFuerSitzung();
   await zeigeErgebnis();
 }
 
