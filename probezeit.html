@@ -837,9 +837,12 @@ document.getElementById('memberPin')
 
 function zeigeAbstimmung() {
   currentVote = null;
+  abbrechenCountdown();
   document.getElementById('btnJa').classList.remove('selected');
+  document.getElementById('btnJa').disabled  = false;
   document.getElementById('btnNein').classList.remove('selected');
-  document.getElementById('voteHinweis').style.display = 'none';
+  document.getElementById('btnNein').disabled = false;
+  document.getElementById('countdownWrap').style.display = 'none';
   document.getElementById('voteKandidatBox').innerHTML =
     kandidatBox(currentSitzung.kandidat_name, currentSitzung.kandidat_sg);
   showScreen('s-member-vote');
