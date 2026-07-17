@@ -154,10 +154,10 @@
     .vote-btn { padding: 0.8rem 0.4rem; text-align: center; font-size: 0.88rem; font-family: 'Source Sans 3', sans-serif; font-weight: 600; cursor: pointer; border: none; border-right: 1px solid var(--border); background: white; color: var(--ink); transition: background 0.12s, color 0.12s; }
     .vote-btn:last-child { border-right: none; }
     .vote-btn:hover { background: #eeedf0; }
-    .vote-btn.sel-V { background: #3a4060; color: white; }
-    .vote-btn.sel-G { background: #2a5840; color: white; }
+    .vote-btn.sel-V { background: #2a6e3f; color: white; }
+    .vote-btn.sel-G { background: #b8860b; color: white; }
     .vote-btn.sel-S { background: #7c5a10; color: white; }
-    .vote-btn.sel-N { background: #6a1c1c; color: white; }
+    .vote-btn.sel-N { background: #9c2020; color: white; }
 
     /* ── MONITOR (Fortschrittsanzeige) ───────────────────────────────── */
     .progress-ring-wrap { text-align: center; padding: 1.5rem 0 1rem; }
@@ -170,10 +170,9 @@
     /* ── ERGEBNIS-TABELLE ────────────────────────────────────────────── */
     .res-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .res-table { min-width: 420px; }
-    .res-table th.cat-v { background: #3a4060; text-align: center; }
-    .res-table th.cat-g { background: #2a5840; text-align: center; }
-    .res-table th.cat-s { background: #7c5a10; text-align: center; }
-    .res-table th.cat-n { background: #6a1c1c; text-align: center; }
+    .res-table th.cat-v { background: #2a6e3f; text-align: center; }
+    .res-table th.cat-g { background: #b8860b; text-align: center; }
+    .res-table th.cat-n { background: #9c2020; text-align: center; }
 
     /* ── WARTEN-SCREEN ───────────────────────────────────────────────── */
     .warten-wrap { text-align: center; padding: 2.5rem 1rem; }
@@ -209,6 +208,8 @@
 <body>
 
 <header>
+  <img src="logo_rkc.png" alt="RIAS Kammerchor Berlin"
+       style="height:2.8rem;width:auto;flex-shrink:0;">
   <div class="logo">
     RIAS Kammerchor Berlin
     <span>Vorsingen · Online-Abstimmung</span>
@@ -424,7 +425,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
 // ════════════════════════════════════════════════════════════════════════
 // STATE
 // ════════════════════════════════════════════════════════════════════════
-const KATEGORIEN   = ['Vakanz', 'Gast', 'Verstärkung', 'Nein'];
+const KATEGORIEN   = ['Vakanz', 'Gast', 'Nein'];
 const STIMMGRUPPEN = ['Sopran', 'Alt', 'Tenor', 'Bass'];
 
 let currentSitzung  = null;   // {id, status, datum}
@@ -895,7 +896,7 @@ async function startMemberVote() {
   kandidaten.forEach(k => { memberVotes[k.id] = 'Nein'; });
 
   // Formular aufbauen
-  const catKey = { 'Vakanz':'V','Gast':'G','Verstärkung':'S','Nein':'N' };
+  const catKey = { 'Vakanz':'V','Gast':'G','Nein':'N' };
   document.getElementById('memberVoteTitle').textContent =
     `Abstimmung – ${kandidaten.length} Kandidat${kandidaten.length !== 1 ? 'en' : ''}`;
 
@@ -917,7 +918,7 @@ async function startMemberVote() {
 
 function selectMemberVote(kid, kat, btn) {
   memberVotes[kid] = kat;
-  const catKey = { 'Vakanz':'V','Gast':'G','Verstärkung':'S','Nein':'N' };
+  const catKey = { 'Vakanz':'V','Gast':'G','Nein':'N' };
   const group  = btn.closest('.vote-btn-group');
   group.querySelectorAll('.vote-btn').forEach(b => { b.className = 'vote-btn'; });
   btn.classList.add(`sel-${catKey[kat]}`);
@@ -980,34 +981,29 @@ async function zeigeErgebnis() {
   // Stimmen aggregieren
   const rohzahlen = {};
   kandidaten.forEach(k => {
-    rohzahlen[k.id] = { vV: 0, vG: 0, vS: 0, vN: 0 };
+    rohzahlen[k.id] = { vV: 0, vG: 0, vN: 0 };
   });
   (stimmenData || []).forEach(s => {
     const r = rohzahlen[s.kandidat_id];
     if (!r) return;
-    if      (s.kategorie === 'Vakanz')      r.vV++;
-    else if (s.kategorie === 'Gast')        r.vG++;
-    else if (s.kategorie === 'Verstärkung') r.vS++;
-    else                                    r.vN++;
+    if      (s.kategorie === 'Vakanz') r.vV++;
+    else if (s.kategorie === 'Gast')   r.vG++;
+    else                               r.vN++;
   });
 
   const nGesamt = anwesendeListe.length;
 
   const ergebnisse = anwendeRegel4(kandidaten.map(k => {
-    const r    = rohzahlen[k.id];
-    const sgM  = anwesendeListe.filter(m => normStimme(m.stimme) === k.stimmgruppe);
-    const nSG  = sgM.length;
+    const r   = rohzahlen[k.id];
+    const sgM = anwesendeListe.filter(m => normStimme(m.stimme) === k.stimmgruppe);
+    const nSG = sgM.length;
 
-    // Exakte SG-Stimmen aus gespeicherter stimmgruppe (Option B)
     const stimmenFuerK = (stimmenData || []).filter(s => s.kandidat_id === k.id && normStimme(s.stimmgruppe) === k.stimmgruppe);
     const sgV = stimmenFuerK.filter(s => s.kategorie === 'Vakanz').length;
     const sgG = stimmenFuerK.filter(s => s.kategorie === 'Gast').length;
-    const sgS = stimmenFuerK.filter(s => s.kategorie === 'Verstärkung').length;
 
-    const effGast  = r.vV + r.vG;
-    const effVerst = r.vV + r.vG + r.vS;
-    const sgEffG   = sgV + sgG;
-    const sgEffS   = sgV + sgG + sgS;
+    const effGast = r.vV + r.vG;
+    const sgEffG  = sgV + sgG;
 
     function besteht(eff, sgEff) {
       if (nGesamt === 0) return false;
@@ -1017,20 +1013,16 @@ async function zeigeErgebnis() {
     }
 
     let ergebnis, effFuerRegel4;
-    if      (besteht(r.vV,    sgV))    { ergebnis = 'Vakanz';      effFuerRegel4 = r.vV;    }
-    else if (besteht(effGast,  sgEffG)) { ergebnis = 'Gast';        effFuerRegel4 = effGast; }
-    else if (besteht(effVerst, sgEffS)) { ergebnis = 'Verstärkung'; effFuerRegel4 = effVerst;}
-    else                                { ergebnis = 'Nein';        effFuerRegel4 = 0;       }
+    if      (besteht(r.vV,    sgV))   { ergebnis = 'Vakanz'; effFuerRegel4 = r.vV;    }
+    else if (besteht(effGast, sgEffG)){ ergebnis = 'Gast';   effFuerRegel4 = effGast; }
+    else                              { ergebnis = 'Nein';   effFuerRegel4 = 0;       }
 
     const pct = (n, d) => d > 0 ? Math.round(n/d*100) + '\u202f%' : '–';
     return {
-      kandidat: k,
-      ergebnis, effFuerRegel4,
+      kandidat: k, ergebnis, effFuerRegel4,
       roh: r, nGesamt, nSG,
-      eff: { gast: effGast, verst: effVerst },
-      sg:  { vakanz: sgV, gast: sgEffG, verst: sgEffS },
-      pctGes: { vakanz: pct(r.vV, nGesamt), gast: pct(effGast, nGesamt), verst: pct(effVerst, nGesamt) },
-      pctSG:  { vakanz: pct(sgV, nSG),      gast: pct(sgEffG, nSG),      verst: pct(sgEffS, nSG) }
+      eff: { gast: effGast },
+      sg:  { vakanz: sgV, gast: sgEffG },
     };
   }));
 
@@ -1040,7 +1032,7 @@ async function zeigeErgebnis() {
 }
 
 function anwendeRegel4(ergebnisse) {
-  ['Vakanz', 'Gast', 'Verstärkung'].forEach(kat => {
+  ['Vakanz', 'Gast'].forEach(kat => {
     STIMMGRUPPEN.forEach(sg => {
       const gruppe = ergebnisse.filter(e => e.ergebnis === kat && e.kandidat.stimmgruppe === sg);
       if (gruppe.length > 1) {
@@ -1052,7 +1044,7 @@ function anwendeRegel4(ergebnisse) {
   return ergebnisse;
 }
 
-const ESTIL = { 'Vakanz':['#3a4060','★'],'Gast':['#2a5840','✓'],'Verstärkung':['#7c5a10','✓'],'Nein':['#6a1c1c','✗'] };
+const ESTIL = { 'Vakanz':['#2a6e3f','★'],'Gast':['#b8860b','✓'],'Nein':['#9c2020','✗'] };
 function ergebnisTag(e) {
   const [bg, icon] = ESTIL[e.ergebnis];
   const label = e.regel4Zurueck ? `${e.ergebnis} (Regel\u00a04)` : e.ergebnis;
@@ -1078,14 +1070,12 @@ function renderErgebnis(ergebnisse, total) {
       const pct = (n, sg) => `<div style="font-size:0.7rem;color:var(--muted)">${nGesamt>0?Math.round(n/nGesamt*100)+'%':'–'} / ${nSG>0?Math.round(sg/nSG*100)+'%':'–'}</div>`;
       const pV = ergebnis==='Vakanz'      ? pct(r.vV,        e.sg.vakanz) : '';
       const pG = ergebnis==='Gast'        ? pct(e.eff.gast,  e.sg.gast)   : '';
-      const pS = ergebnis==='Verstärkung' ? pct(e.eff.verst, e.sg.verst)  : '';
-      return `<tr>
+        return `<tr>
         <td><strong>${k.name}</strong></td>
         <td>${badge(k.stimmgruppe)}</td>
-        <td class="center"><strong style="color:#3a4060">${r.vV}</strong>${pV}</td>
-        <td class="center"><strong style="color:#2a5840">${r.vG}</strong>${pG}</td>
-        <td class="center"><strong style="color:#7c5a10">${r.vS}</strong>${pS}</td>
-        <td class="center"><strong style="color:#6a1c1c">${r.vN}</strong></td>
+        <td class="center"><strong style="color:#2a6e3f">${r.vV}</strong>${pV}</td>
+        <td class="center"><strong style="color:#b8860b">${r.vG}</strong>${pG}</td>
+        <td class="center"><strong style="color:#9c2020">${r.vN}</strong></td>
         <td>${ergebnisTag(e)}</td>
       </tr>`;
     }).join('');
@@ -1095,7 +1085,7 @@ function renderErgebnis(ergebnisse, total) {
         <thead><tr>
           <th>Kandidat/in</th><th>SG</th>
           <th class="cat-v">Vakanz</th><th class="cat-g">Gast</th>
-          <th class="cat-s">Verstärk.</th><th class="cat-n">Nein</th>
+          <th class="cat-n">Nein</th>
           <th>Empfehlung</th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -1103,7 +1093,7 @@ function renderErgebnis(ergebnisse, total) {
 
     document.getElementById('ergebnisBeschreibungen').innerHTML =
       ergebnisse.map(e => {
-        const col = { 'Vakanz':'#3a4060','Gast':'#2a5840','Verstärkung':'#7c5a10','Nein':'#6a1c1c' };
+        const col = { 'Vakanz':'#2a6e3f','Gast':'#b8860b','Nein':'#9c2020' };
         return `<div style="border-left:3px solid ${col[e.ergebnis]};padding:0.6rem 1rem;
                   margin-bottom:0.65rem;background:#faf9f7;border-radius:0 4px 4px 0;
                   font-size:0.86rem;line-height:1.6;">
@@ -1143,13 +1133,13 @@ function renderErgebnis(ergebnisse, total) {
 function exportCSV() {
   if (!window._letzteErgebnisse) { alert('Bitte zuerst die Auswertung anzeigen.'); return; }
 
-  const header = ['Name','Stimmgruppe','Vakanz','Gast','Verstärkung','Nein','Empfehlung','Erläuterung'];
+  const header = ['Name','Stimmgruppe','Vakanz','Gast (eff.)','Nein','Empfehlung','Erläuterung'];
   const rows = window._letzteErgebnisse.map(e => {
     const { roh: r } = e;
     const empf = e.regel4Zurueck ? e.ergebnis + ' (zurückgestellt, Regel 4)' : e.ergebnis;
     const text = generiereText(e).replace(/<[^>]+>/g, '');
     return [e.kandidat.name, e.kandidat.stimmgruppe,
-      r.vV, r.vG, r.vS, r.vN,
+      r.vV, e.eff.gast, r.vN,
       empf, `"${text.replace(/"/g, '""')}"`].join(';');
   });
 
@@ -1175,18 +1165,17 @@ function generiereText(e) {
 
   if (ergebnis === 'Nein') {
     return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) stimmten ` +
-      `${r.vV}× Vakanz, ${r.vG}× Gast, ${r.vS}× Verstärkung und ${r.vN}× Nein. ` +
+      `${r.vV}× Vakanz, ${r.vG}× Gast und ${r.vN}× Nein. ` +
       `Auch unter Berücksichtigung der Stimmenkaskade (Regel\u00a06) wurde für keine ` +
       `Kategorie eine der erforderlichen Mehrheiten erreicht. <strong>Empfehlung: Abgelehnt.</strong>`;
   }
   let einl = '';
   if (ergebnis === 'Gast')
     einl = `Für eine Vakanz-Einstellung reichte es nicht aus (${p(r.vV,nGesamt)}\u202fges. / ${p(sg.vakanz,nSG)}\u202fSG). `;
-  if (ergebnis === 'Verstärkung')
-    einl = `Weder Vakanz (${p(r.vV,nGesamt)}\u202fges. / ${p(sg.vakanz,nSG)}\u202fSG) noch Gast (${p(eff.gast,nGesamt)}\u202fges. / ${p(sg.gast,nSG)}\u202fSG) wurden erreicht. `;
 
-  const effN  = ergebnis==='Vakanz' ? r.vV      : ergebnis==='Gast' ? eff.gast  : eff.verst;
-  const sgE   = ergebnis==='Vakanz' ? sg.vakanz  : ergebnis==='Gast' ? sg.gast   : sg.verst;
+
+  const effN = ergebnis==='Vakanz' ? r.vV     : eff.gast;
+  const sgE  = ergebnis==='Vakanz' ? sg.vakanz : sg.gast;
   const katL  = ergebnis==='Vakanz' ? 'Vakanz'
               : ergebnis==='Gast'   ? 'Gast (Vakanz\u202f+\u202fGast kaskadiert)'
               : 'Verstärkung (V\u202f+\u202fG\u202f+\u202fS kaskadiert)';

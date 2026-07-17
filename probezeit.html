@@ -219,6 +219,8 @@
 <body>
 
 <header>
+  <img src="logo_rkc.png" alt="RIAS Kammerchor Berlin"
+       style="height:2.8rem;width:auto;flex-shrink:0;">
   <div class="logo">
     RIAS Kammerchor Berlin
     <span>Probezeit · Abstimmung</span>
@@ -364,7 +366,6 @@
   <div class="screen" id="s-member-name">
     <div class="card">
       <div class="card-title">Wer bist du?</div>
-      <div id="memberKandidatBox"></div>
       <div class="form-group">
         <label>Name auswählen</label>
         <select id="memberSelect">
@@ -772,9 +773,6 @@ async function ladeMemberNamen() {
 
   anwesendeListe = (data || []).map(r => r.mitglieder)
     .sort((a, b) => a.nachname.localeCompare(b.nachname, 'de'));
-
-  document.getElementById('memberKandidatBox').innerHTML =
-    kandidatBox(currentSitzung.kandidat_name, currentSitzung.kandidat_sg);
 
   const sel = document.getElementById('memberSelect');
   sel.innerHTML = `<option value="">– bitte wählen –</option>` +
