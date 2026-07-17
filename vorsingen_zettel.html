@@ -245,7 +245,7 @@
     }
     .kv-options {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
     }
     .kv-btn {
       padding: 0.75rem 0.4rem;
@@ -256,20 +256,31 @@
       cursor: pointer;
       border: none;
       border-right: 1px solid var(--border);
-      background: white;
-      color: var(--ink);
       transition: background 0.12s, color 0.12s;
       letter-spacing: 0.02em;
     }
     .kv-btn:last-child { border-right: none; }
-    .kv-btn:hover { background: #eeedf0; }
+
+    /* Vorkolorierung (schwach) */
+    .kv-btn.kv-V { background: #eaf4ee; color: #2a6e3f; }
+    .kv-btn.kv-G { background: #fef9e6; color: #a07010; }
+    .kv-btn.kv-N { background: #fdecea; color: #9c2020; }
+
+    /* Vollton bei Auswahl */
     .kv-btn.active-V { background: #2a6e3f; color: white; }
     .kv-btn.active-G { background: #b8860b; color: white; }
-    .kv-btn.active-S { background: #7c5a10; color: white; }
     .kv-btn.active-N { background: #9c2020; color: white; }
-    @media (max-width: 500px) {
-      .kv-options { grid-template-columns: repeat(3, 1fr); }
-      .kv-btn { padding: 0.75rem 0.25rem; font-size: 0.82rem; }
+
+    /* Mobile: drei Buttons übereinander */
+    @media (max-width: 540px) {
+      .kv-options { grid-template-columns: 1fr; }
+      .kv-btn {
+        padding: 1rem;
+        font-size: 0.95rem;
+        border-right: none;
+        border-bottom: 1px solid rgba(255,255,255,0.4);
+      }
+      .kv-btn:last-child { border-bottom: none; }
     }
 
     /* ── MOBILE HOCHFORMAT ───────────────────────────────────────────── */
@@ -769,7 +780,7 @@ function renderVoteForm() {
           ${KATEGORIEN.map(kat => {
             const ck = catKey[kat];
             const isActive = cur === kat ? ` active-${ck}` : '';
-            return `<button class="kv-btn${isActive}"
+            return `<button class="kv-btn kv-${ck}${isActive}"
               onclick="selectVote('${voter.id}', ${k.id}, '${kat}', this)"
               data-kid="${k.id}" data-kat="${kat}">${kat}</button>`;
           }).join('')}
@@ -782,10 +793,11 @@ const catKey = { 'Vakanz': 'V', 'Gast': 'G', 'Nein': 'N' };
 
 function selectVote(mid, kid, kat, btn) {
   stimmen[mid][kid] = kat;
-  // Alle Buttons dieser Zeile zurücksetzen, dann aktiven hervorheben
+  const catKey = { 'Vakanz': 'V', 'Gast': 'G', 'Nein': 'N' };
   const row = btn.closest('.kv-options');
   row.querySelectorAll('.kv-btn').forEach(b => {
-    b.className = 'kv-btn';
+    const bk = catKey[b.dataset.kat];
+    b.className = `kv-btn kv-${bk}`;
   });
   btn.classList.add(`active-${catKey[kat]}`);
 }
