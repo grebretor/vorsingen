@@ -484,6 +484,7 @@
     <div class="card" id="abstimmungCard">
       <div class="card-title" id="abstimmungTitel">…</div>
       <div class="voter-progress" id="voterProgress"></div>
+      <div id="sgFortschritt" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:1rem"></div>
       <div id="voteForm"></div>
     </div>
 
@@ -717,9 +718,42 @@ function renderVoteForm() {
   document.getElementById('abstimmungTitel').innerHTML =
     `Stimme von: <strong>${voter.anonLabel}</strong>`;
 
+  // ── Fortschritt gesamt ────────────────────────────────────────────
   document.getElementById('voterProgress').innerHTML =
     `Mitglied ${currentVoterIdx + 1} von ${total}
      <span class="fraction">${Math.round((currentVoterIdx + 1) / total * 100)} %</span>`;
+
+  // ── Fortschritt nach Stimmgruppe ──────────────────────────────────
+  const sgStatus = {};
+  STIMMGRUPPEN.forEach(sg => { sgStatus[sg] = { fertig: 0, gesamt: 0 }; });
+  anwesendeMitglieder.forEach((m, idx) => {
+    const sg = m.anonLabel.split(' ')[0];
+    if (sgStatus[sg]) {
+      sgStatus[sg].gesamt++;
+      if (idx < currentVoterIdx) sgStatus[sg].fertig++;
+    }
+  });
+
+  const sgBadgeColor = { Sopran: 'var(--s-col)', Alt: 'var(--a-col)', Tenor: 'var(--t-col)', Bass: 'var(--b-col)' };
+  const sgBgColor    = { Sopran: 'var(--s-bg)',  Alt: 'var(--a-bg)',  Tenor: 'var(--t-bg)',  Bass: 'var(--b-bg)'  };
+
+  const sgHtml = STIMMGRUPPEN
+    .filter(sg => sgStatus[sg].gesamt > 0)
+    .map(sg => {
+      const { fertig, gesamt } = sgStatus[sg];
+      const alleErledigt = fertig === gesamt;
+      const bg    = alleErledigt ? '#e8f2ec' : sgBgColor[sg];
+      const color = alleErledigt ? '#1a5230' : sgBadgeColor[sg];
+      const icon  = alleErledigt ? '✓ ' : '';
+      return `<span style="display:inline-flex;align-items:center;gap:0.3rem;
+                background:${bg};color:${color};
+                padding:0.2rem 0.6rem;border-radius:3px;
+                font-size:0.78rem;font-weight:700;letter-spacing:0.03em">
+        ${icon}${sg[0]} ${fertig}/${gesamt}
+      </span>`;
+    }).join('');
+
+  document.getElementById('sgFortschritt').innerHTML = sgHtml;
 
   document.getElementById('btnNextVoter').textContent =
     currentVoterIdx < total - 1 ? 'Weiter →' : 'Auswertung anzeigen ✓';
