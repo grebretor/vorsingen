@@ -279,20 +279,20 @@
   <div class="screen" id="s-admin-neu">
     <div class="card">
       <div class="card-title">Neue Abstimmung anlegen</div>
-      <div class="form-row">
-        <div class="form-group wide">
-          <label>Name des Mitglieds</label>
-          <input type="text" id="neuName" placeholder="Vorname Nachname">
-        </div>
-        <div class="form-group">
-          <label>Stimmgruppe</label>
-          <select id="neuSg">
-            <option value="Sopran">Sopran</option>
-            <option value="Alt">Alt</option>
-            <option value="Tenor">Tenor</option>
-            <option value="Bass">Bass</option>
-          </select>
-        </div>
+      <div class="form-group">
+        <label>Mitglied in der Probezeit</label>
+        <select id="neuKandidatSelect" onchange="kandidatGewaehlt()">
+          <option value="">⏳ Wird geladen…</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Stimmgruppe</label>
+        <select id="neuSg">
+          <option value="Sopran">Sopran</option>
+          <option value="Alt">Alt</option>
+          <option value="Tenor">Tenor</option>
+          <option value="Bass">Bass</option>
+        </select>
       </div>
       <div class="form-group">
         <label>PIN-Pflicht</label>
@@ -534,13 +534,46 @@ function checkLogin() {
 async function adminNachLogin() {
   setRoleBadge('Leitung');
   showScreen('s-admin-sitzung');
+  await ladeKandidatenDropdown();
   await ladeSitzungsStatus();
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// ADMIN – SITZUNGSVERWALTUNG
-// ════════════════════════════════════════════════════════════════════════
-async function checkActiveSitzung() {
+async function ladeKandidatenDropdown() {
+  const { data } = await sb
+    .from('mitglieder')
+    .select('id, vorname, nachname, stimme')
+    .order('nachname');
+  const sel = document.getElementById('neuKandidatSelect');
+  if (!data || !sel) return;
+  sel.innerHTML = `<option value="">– bitte wählen –</option>` +
+    data.map(m =>
+      `<option value="${m.id}" data-sg="${normStimme(m.stimme)}">${m.vorname} ${m.nachname}</option>`
+    ).join('');
+}
+
+function kandidatGewaehlt() {
+  const sel = document.getElementById('neuKandidatSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const sg  = opt?.dataset?.sg;
+  if (sg) document.getElementById('neuSg').value = sg;
+}
+
+async function neueSitzungAnlegen() {
+  const sel  = document.getElementById('neuKandidatSelect');
+  const opt  = sel.options[sel.selectedIndex];
+  const name = opt?.text?.trim();
+  const sg   = document.getElementById('neuSg').value;
+  const pin  = document.getElementById('neuPin').value === 'true';
+  if (!name || sel.value === '') { alert('Bitte ein Mitglied auswählen.'); return; }
+
+  const { data, error } = await sb
+    .from('p_sitzungen')
+    .insert({ kandidat_name: name, kandidat_sg: sg, status: 'vorbereitung', pin_erforderlich: pin })
+    .select().single();
+  if (error) { alert('Fehler: ' + error.message); return; }
+  currentSitzung = data;
+  goToAnwesenheit();
+}
   const { data } = await sb
     .from('p_sitzungen')
     .select('*')
@@ -590,22 +623,6 @@ async function ladeSitzungsStatus() {
     btnEl.innerHTML = `<span></span>
       <button class="btn btn-primary" onclick="showScreen('s-admin-monitor'); starteMonitor()">Zum Monitor →</button>`;
   }
-}
-
-async function neueSitzungAnlegen() {
-  const name = document.getElementById('neuName').value.trim();
-  const sg   = document.getElementById('neuSg').value;
-  const pin  = document.getElementById('neuPin').value === 'true';
-  if (!name) { alert('Bitte Name eingeben.'); return; }
-
-  const { data, error } = await sb
-    .from('p_sitzungen')
-    .insert({ kandidat_name: name, kandidat_sg: sg, status: 'vorbereitung', pin_erforderlich: pin })
-    .select().single();
-  if (error) { alert('Fehler: ' + error.message); return; }
-  currentSitzung = data;
-  document.getElementById('neuName').value = '';
-  goToAnwesenheit();
 }
 
 async function sitzungLoeschen() {
@@ -787,6 +804,15 @@ async function ladeMemberNamen() {
     ).join('');
   sel.onchange = () => pruefeObAbgestimmt(sel.value);
   document.getElementById('btnWeiter').disabled = true;
+
+  // Ein-Klick: ID aus URL → Name auto-wählen und direkt prüfen
+  if (window._urlId) {
+    const member = anwesendeListe.find(m => m.id === window._urlId);
+    if (member) {
+      sel.value = window._urlId;
+      await pruefeObAbgestimmt(window._urlId);
+    }
+  }
 }
 
 async function pruefeObAbgestimmt(mid) {
@@ -823,6 +849,8 @@ async function pruefeObAbgestimmt(mid) {
     }
     if (window._urlPin === String(currentMitglied.pin)) {
       document.getElementById('btnWeiter').disabled = false;
+      // Ein-Klick: direkt zur Abstimmung wenn ID auch aus URL kam
+      if (window._urlId) setTimeout(() => pinOderWeiter(), 300);
     } else {
       document.getElementById('pinFehler').style.display = 'block';
     }
@@ -864,6 +892,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   if (params.has('mitglied')) {
     window._urlPin = params.get('pin') || null;
+    window._urlId  = params.get('id')  || null;
     goMemberStart();
   }
 });

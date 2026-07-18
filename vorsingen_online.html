@@ -823,6 +823,15 @@ async function ladeMemberNamen() {
     ).join('');
   sel.onchange = () => pruefeObAbgestimmt(sel.value);
   document.getElementById('btnZurAbstimmung').disabled = true;
+
+  // Ein-Klick: ID aus URL → Name auto-wählen und direkt prüfen
+  if (window._urlId) {
+    const member = anwesendeListe.find(m => m.id === window._urlId);
+    if (member) {
+      sel.value = window._urlId;
+      await pruefeObAbgestimmt(window._urlId);
+    }
+  }
 }
 
 async function pruefeObAbgestimmt(mid) {
@@ -866,6 +875,8 @@ async function pruefeObAbgestimmt(mid) {
     }
     if (window._urlPin === String(currentMitglied.pin)) {
       document.getElementById('btnZurAbstimmung').disabled = false;
+      // Ein-Klick: direkt zur Abstimmung wenn ID auch aus URL kam
+      if (window._urlId) setTimeout(() => startMemberVote(), 300);
     } else {
       document.getElementById('pinFehler').style.display = 'block';
     }
@@ -1215,6 +1226,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   if (params.has('mitglied')) {
     window._urlPin = params.get('pin') || null;
+    window._urlId  = params.get('id')  || null;
     goMemberStart();
   }
 });
