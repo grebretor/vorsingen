@@ -284,6 +284,13 @@
         </div>
         <div><button class="btn btn-primary" onclick="addKandidat()">+</button></div>
       </div>
+      <div class="form-group">
+        <label>PIN-Pflicht</label>
+        <select id="vsPinPflicht">
+          <option value="true">Mit persönlicher PIN (empfohlen)</option>
+          <option value="false">Ohne PIN</option>
+        </select>
+      </div>
       <div id="kandidatenListe"></div>
     </div>
     <div class="btn-row">
@@ -569,11 +576,7 @@ async function ladeSitzungsStatus() {
 }
 
 async function neueSitzungAnlegen() {
-  const pinErforderlich = confirm(
-    'Soll bei dieser Abstimmung eine persönliche PIN erforderlich sein?\n\n' +
-    '✓ OK  →  Mit PIN (empfohlen)\n' +
-    '✗ Abbrechen  →  Ohne PIN'
-  );
+  const pinErforderlich = document.getElementById('vsPinPflicht').value === 'true';
 
   const { data, error } = await sb
     .from('v_sitzungen')
