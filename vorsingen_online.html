@@ -853,9 +853,22 @@ async function pruefeObAbgestimmt(mid) {
   currentMitglied = anwesendeListe.find(m => m.id === mid);
 
   if (!currentSitzung.pin_erforderlich) {
-    // Ohne PIN direkt freischalten
     document.getElementById('pinWrap').style.display = 'none';
     document.getElementById('btnZurAbstimmung').disabled = false;
+    return;
+  }
+
+  // PIN aus URL? → unsichtbar prüfen, kein Feld zeigen
+  if (window._urlPin) {
+    if (!currentMitglied?.pin) {
+      document.getElementById('pinNichtGesetzt').style.display = 'block';
+      return;
+    }
+    if (window._urlPin === String(currentMitglied.pin)) {
+      document.getElementById('btnZurAbstimmung').disabled = false;
+    } else {
+      document.getElementById('pinFehler').style.display = 'block';
+    }
     return;
   }
 
@@ -871,7 +884,7 @@ async function pruefeObAbgestimmt(mid) {
 }
 
 function pinOderWeiter() {
-  if (!currentSitzung.pin_erforderlich) {
+  if (!currentSitzung.pin_erforderlich || window._urlPin) {
     startMemberVote();
   } else {
     pruefePin();
@@ -1194,6 +1207,17 @@ function generiereText(e) {
     einl + wegT + r4 +
     ` <strong>Empfehlung: ${e.regel4Zurueck ? ergebnis+' – zurückgestellt' : ergebnis}.</strong>`;
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// START: URL-Parameter prüfen
+// ════════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('mitglied')) {
+    window._urlPin = params.get('pin') || null;
+    goMemberStart();
+  }
+});
 </script>
 </body>
 </html>
