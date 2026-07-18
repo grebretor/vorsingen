@@ -574,6 +574,11 @@ async function neueSitzungAnlegen() {
   currentSitzung = data;
   goToAnwesenheit();
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – SITZUNGSVERWALTUNG
+// ════════════════════════════════════════════════════════════════════════
+async function checkActiveSitzung() {
   const { data } = await sb
     .from('p_sitzungen')
     .select('*')
