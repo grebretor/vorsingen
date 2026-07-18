@@ -150,13 +150,16 @@
     /* ── ABSTIMMUNGSFORMULAR (Mitglied) ──────────────────────────────── */
     .vote-card { border: 1.5px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
     .vote-card-name { padding: 0.6rem 1rem; font-weight: 600; font-size: 0.92rem; background: #f8f7f4; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; }
-    .vote-btn-group { display: grid; grid-template-columns: repeat(4, 1fr); }
-    .vote-btn { padding: 0.8rem 0.4rem; text-align: center; font-size: 0.88rem; font-family: 'Source Sans 3', sans-serif; font-weight: 600; cursor: pointer; border: none; border-right: 1px solid var(--border); background: white; color: var(--ink); transition: background 0.12s, color 0.12s; }
+    .vote-btn-group { display: grid; grid-template-columns: repeat(3, 1fr); }
+    .vote-btn { padding: 0.8rem 0.4rem; text-align: center; font-size: 0.88rem; font-family: 'Source Sans 3', sans-serif; font-weight: 600; cursor: pointer; border: none; border-right: 1px solid var(--border); transition: background 0.12s, color 0.12s; }
     .vote-btn:last-child { border-right: none; }
-    .vote-btn:hover { background: #eeedf0; }
+    /* Vorkolorierung (schwach) */
+    .vote-btn.vote-V { background: #eaf4ee; color: #2a6e3f; }
+    .vote-btn.vote-G { background: #fef9e6; color: #a07010; }
+    .vote-btn.vote-N { background: #fdecea; color: #9c2020; }
+    /* Vollton bei Auswahl */
     .vote-btn.sel-V { background: #2a6e3f; color: white; }
     .vote-btn.sel-G { background: #b8860b; color: white; }
-    .vote-btn.sel-S { background: #7c5a10; color: white; }
     .vote-btn.sel-N { background: #9c2020; color: white; }
 
     /* ── MONITOR (Fortschrittsanzeige) ───────────────────────────────── */
@@ -191,8 +194,9 @@
       .form-group.wide, .form-group { flex: unset; width: 100%; }
       .form-row > div:last-child, .form-row .btn { width: 100%; }
       .check-grid { grid-template-columns: repeat(2, 1fr); }
-      .vote-btn-group { grid-template-columns: repeat(2, 1fr); }
-      .vote-btn { padding: 0.85rem 0.3rem; border-bottom: 1px solid var(--border); }
+      .vote-btn-group { grid-template-columns: 1fr; }
+      .vote-btn { padding: 1rem; font-size: 0.95rem; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.4); }
+      .vote-btn:last-child { border-bottom: none; }
       .btn-row { flex-wrap: wrap; }
       .btn-row .btn, .btn-row .right .btn { width: 100%; }
       input[type="text"], input[type="password"], select { font-size: 1rem; padding: 0.75rem; }
@@ -933,7 +937,7 @@ async function startMemberVote() {
       <div class="vote-btn-group">
         ${KATEGORIEN.map(kat => {
           const ck = catKey[kat];
-          return `<button class="vote-btn${kat === 'Nein' ? ' sel-N' : ''}"
+          return `<button class="vote-btn vote-${ck}${kat === 'Nein' ? ' sel-N' : ''}"
             onclick="selectMemberVote('${k.id}', '${kat}', this)"
             data-kid="${k.id}">${kat}</button>`;
         }).join('')}
@@ -947,7 +951,11 @@ function selectMemberVote(kid, kat, btn) {
   memberVotes[kid] = kat;
   const catKey = { 'Vakanz':'V','Gast':'G','Nein':'N' };
   const group  = btn.closest('.vote-btn-group');
-  group.querySelectorAll('.vote-btn').forEach(b => { b.className = 'vote-btn'; });
+  group.querySelectorAll('.vote-btn').forEach(b => {
+    const bk = catKey[b.dataset.kid ? b.textContent.trim() : 'Nein'];
+    // Vorkolorierung beibehalten, nur sel-Klasse entfernen
+    b.className = `vote-btn vote-${catKey[b.textContent.trim()] || 'N'}`;
+  });
   btn.classList.add(`sel-${catKey[kat]}`);
 }
 
