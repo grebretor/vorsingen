@@ -814,6 +814,21 @@ async function pruefeObAbgestimmt(mid) {
     document.getElementById('btnWeiter').disabled = false;
     return;
   }
+
+  // PIN aus URL? → unsichtbar prüfen, kein Feld zeigen
+  if (window._urlPin) {
+    if (!currentMitglied?.pin) {
+      document.getElementById('pinNichtGesetzt').style.display = 'block';
+      return;
+    }
+    if (window._urlPin === String(currentMitglied.pin)) {
+      document.getElementById('btnWeiter').disabled = false;
+    } else {
+      document.getElementById('pinFehler').style.display = 'block';
+    }
+    return;
+  }
+
   if (!currentMitglied?.pin) {
     document.getElementById('pinNichtGesetzt').style.display = 'block';
     return;
@@ -824,7 +839,7 @@ async function pruefeObAbgestimmt(mid) {
 }
 
 function pinOderWeiter() {
-  if (!currentSitzung.pin_erforderlich) {
+  if (!currentSitzung.pin_erforderlich || window._urlPin) {
     zeigeAbstimmung();
     return;
   }
@@ -848,19 +863,8 @@ document.getElementById('memberPin')
 window.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   if (params.has('mitglied')) {
+    window._urlPin = params.get('pin') || null;
     goMemberStart();
-    // PIN aus URL vorausfüllen falls vorhanden
-    if (params.has('pin')) {
-      const pinVal = params.get('pin');
-      // Warte bis das PIN-Feld gerendert ist
-      const interval = setInterval(() => {
-        const pinField = document.getElementById('memberPin');
-        if (pinField) {
-          pinField.value = pinVal;
-          clearInterval(interval);
-        }
-      }, 100);
-    }
   }
 });
 
