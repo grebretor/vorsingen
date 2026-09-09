@@ -226,6 +226,7 @@
     <span>Probezeit · Abstimmung</span>
   </div>
   <div class="role-badge" id="roleBadge"></div>
+  <button id="btnDirektlinks" class="btn btn-outline btn-sm" style="display:none;margin-left:0.5rem" onclick="openDirektlinks()">🔗 Direktlinks</button>
 </header>
 
 <div class="container">
@@ -279,20 +280,20 @@
   <div class="screen" id="s-admin-neu">
     <div class="card">
       <div class="card-title">Neue Abstimmung anlegen</div>
-      <div class="form-group">
-        <label>Mitglied in der Probezeit</label>
-        <select id="neuKandidatSelect" onchange="kandidatGewaehlt()">
-          <option value="">⏳ Wird geladen…</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>Stimmgruppe</label>
-        <select id="neuSg">
-          <option value="Sopran">Sopran</option>
-          <option value="Alt">Alt</option>
-          <option value="Tenor">Tenor</option>
-          <option value="Bass">Bass</option>
-        </select>
+      <div class="form-row">
+        <div class="form-group wide">
+          <label>Name des Mitglieds</label>
+          <input type="text" id="neuName" placeholder="Vorname Nachname">
+        </div>
+        <div class="form-group">
+          <label>Stimmgruppe</label>
+          <select id="neuSg">
+            <option value="Sopran">Sopran</option>
+            <option value="Alt">Alt</option>
+            <option value="Tenor">Tenor</option>
+            <option value="Bass">Bass</option>
+          </select>
+        </div>
       </div>
       <div class="form-group">
         <label>PIN-Pflicht</label>
@@ -311,7 +312,7 @@
   <!-- ══ ADMIN: ANWESENHEIT ══════════════════════════════════════════════ -->
   <div class="screen" id="s-admin-anwesenheit">
     <div class="card">
-      <div class="card-title">Stimmberechtigte Mitglieder</div>
+      <div class="card-title">Anwesenheit der Mitglieder</div>
       <div id="anwKandidatBox"></div>
       <div class="alert alert-info" id="anwAlert">⏳ Mitglieder werden geladen…</div>
       <div id="anwGrid" style="display:none"></div>
@@ -390,7 +391,7 @@
   <!-- ══ MITGLIED: ABSTIMMUNG ═══════════════════════════════════════════ -->
   <div class="screen" id="s-member-vote">
     <div class="card">
-      <div class="card-title" id="voteCardTitle">Abstimmung über das Ergebnis der Probezeit von</div>
+      <div class="card-title">Deine Stimme</div>
       <div id="voteKandidatBox"></div>
       <div class="vote-buttons">
         <button class="vote-big ja" id="btnJa" onclick="selectVote('Ja')">
@@ -401,12 +402,6 @@
           <span class="vote-icon">✗</span>
           Nein – Ablehnung
         </button>
-      </div>
-      <div style="font-size:0.82rem;color:var(--muted);line-height:1.6;margin-top:0.75rem;padding:0.6rem 0.75rem;background:#f8f7f4;border-radius:4px;border-left:3px solid var(--border)">
-        Mit <strong style="color:var(--ja)">Ja</strong> stimmst du für eine
-        <strong style="color:var(--ja)">Übernahme</strong> in den regulären Chorbetrieb (Entfristung),
-        mit <strong style="color:var(--nein)">Nein</strong> für eine
-        <strong style="color:var(--nein)">Beendigung</strong> der Probezeit ohne ein weiterführendes Dienstverhältnis.
       </div>
       <div id="countdownWrap" style="display:none;text-align:center;margin-top:0.75rem">
         <div style="font-size:0.92rem;color:var(--muted);margin-bottom:0.5rem">
@@ -432,6 +427,25 @@
   </div>
 
 </div><!-- /container -->
+
+<!-- ══ MODAL: DIREKTLINKS (nur Leitung) ═════════════════════════════════ -->
+<div id="m-direktlinks" style="display:none;position:fixed;inset:0;background:rgba(26,23,20,.55);z-index:250;align-items:flex-start;justify-content:center">
+  <div style="background:var(--card);border-top:3px solid var(--gold);padding:20px;width:100%;max-width:760px;max-height:96vh;overflow-y:auto;border-radius:0 0 12px 12px;box-shadow:0 4px 24px rgba(0,0,0,.15)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:1rem">
+      <div style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--blue)">🔗 Direktlinks für Mitglieder</div>
+      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('m-direktlinks').style.display='none'">Schließen</button>
+    </div>
+    <div class="alert alert-info" style="font-size:0.82rem">
+      Jeder Link identifiziert das Mitglied automatisch (Name + PIN) und führt bei offener Abstimmung direkt zur Stimmabgabe.
+      Zum Versand: Tabelle unten kopieren und in Mailmeteor bzw. eine Google-Sheets-Vorlage einfügen.
+    </div>
+    <div id="dlBody"></div>
+    <div class="btn-row no-print">
+      <span></span>
+      <button class="btn btn-primary" onclick="kopiereDirektlinks()">📋 Für Mailmeteor kopieren</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ════════════════════════════════════════════════════════════════════════
@@ -503,6 +517,7 @@ function resetAll() {
   setRoleBadge('');
   sessionStorage.removeItem('rkc_admin');
   document.getElementById('startAlert').style.display = 'none';
+  document.getElementById('btnDirektlinks').style.display = 'none';
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -533,46 +548,9 @@ function checkLogin() {
 
 async function adminNachLogin() {
   setRoleBadge('Leitung');
+  document.getElementById('btnDirektlinks').style.display = 'inline-block';
   showScreen('s-admin-sitzung');
-  await ladeKandidatenDropdown();
   await ladeSitzungsStatus();
-}
-
-async function ladeKandidatenDropdown() {
-  const { data } = await sb
-    .from('mitglieder')
-    .select('id, vorname, nachname, stimme')
-    .order('nachname');
-  const sel = document.getElementById('neuKandidatSelect');
-  if (!data || !sel) return;
-  sel.innerHTML = `<option value="">– bitte wählen –</option>` +
-    data.map(m =>
-      `<option value="${m.id}" data-sg="${normStimme(m.stimme)}">${m.vorname} ${m.nachname}</option>`
-    ).join('');
-}
-
-function kandidatGewaehlt() {
-  const sel = document.getElementById('neuKandidatSelect');
-  const opt = sel.options[sel.selectedIndex];
-  const sg  = opt?.dataset?.sg;
-  if (sg) document.getElementById('neuSg').value = sg;
-}
-
-async function neueSitzungAnlegen() {
-  const sel  = document.getElementById('neuKandidatSelect');
-  const opt  = sel.options[sel.selectedIndex];
-  const name = opt?.text?.trim();
-  const sg   = document.getElementById('neuSg').value;
-  const pin  = document.getElementById('neuPin').value === 'true';
-  if (!name || sel.value === '') { alert('Bitte ein Mitglied auswählen.'); return; }
-
-  const { data, error } = await sb
-    .from('p_sitzungen')
-    .insert({ kandidat_name: name, kandidat_sg: sg, status: 'vorbereitung', pin_erforderlich: pin })
-    .select().single();
-  if (error) { alert('Fehler: ' + error.message); return; }
-  currentSitzung = data;
-  goToAnwesenheit();
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -628,6 +606,22 @@ async function ladeSitzungsStatus() {
     btnEl.innerHTML = `<span></span>
       <button class="btn btn-primary" onclick="showScreen('s-admin-monitor'); starteMonitor()">Zum Monitor →</button>`;
   }
+}
+
+async function neueSitzungAnlegen() {
+  const name = document.getElementById('neuName').value.trim();
+  const sg   = document.getElementById('neuSg').value;
+  const pin  = document.getElementById('neuPin').value === 'true';
+  if (!name) { alert('Bitte Name eingeben.'); return; }
+
+  const { data, error } = await sb
+    .from('p_sitzungen')
+    .insert({ kandidat_name: name, kandidat_sg: sg, status: 'vorbereitung', pin_erforderlich: pin })
+    .select().single();
+  if (error) { alert('Fehler: ' + error.message); return; }
+  currentSitzung = data;
+  document.getElementById('neuName').value = '';
+  goToAnwesenheit();
 }
 
 async function sitzungLoeschen() {
@@ -775,6 +769,74 @@ async function ladeLetztesErgebnis(sitzungId) {
 }
 
 // ════════════════════════════════════════════════════════════════════════
+// ADMIN – DIREKTLINKS FÜR MITGLIEDER (zum Kopieren nach Mailmeteor etc.)
+// ════════════════════════════════════════════════════════════════════════
+function dlEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function openDirektlinks() {
+  const { data, error } = await sb.from('mitglieder').select('id, vorname, nachname, email, pin').order('nachname');
+  if (error) { alert('Fehler: ' + error.message); return; }
+
+  const base = location.origin + location.pathname;
+  const rows = (data || []).slice().sort((a, b) => a.nachname.localeCompare(b.nachname, 'de'));
+  const ok = rows.filter(m => m.pin && m.email);
+  const fehlend = rows.filter(m => !m.pin || !m.email);
+
+  const daten = ok.map(m => ({
+    email: m.email, vorname: m.vorname, nachname: m.nachname,
+    link: `${base}?m=${encodeURIComponent(m.id)}&p=${encodeURIComponent(m.pin)}`
+  }));
+  window._direktlinksDaten = daten;
+
+  const tableRows = daten.map(d => `<tr>
+      <td>${dlEsc(d.nachname)}</td><td>${dlEsc(d.vorname)}</td><td>${dlEsc(d.email)}</td>
+      <td style="font-size:0.72rem;word-break:break-all;color:var(--muted)">${dlEsc(d.link)}</td>
+    </tr>`).join('');
+
+  const fehlendHtml = fehlend.length
+    ? `<div class="alert alert-warn" style="margin-top:1rem">Ohne Link, da PIN und/oder E-Mail fehlt: ${fehlend.map(m => dlEsc(m.vorname + ' ' + m.nachname)).join(', ')}</div>`
+    : '';
+
+  document.getElementById('dlBody').innerHTML = `
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+      <thead><tr>
+        <th style="text-align:left;padding:0.5rem 0.6rem;border-bottom:2px solid var(--border);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Nachname</th>
+        <th style="text-align:left;padding:0.5rem 0.6rem;border-bottom:2px solid var(--border);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Vorname</th>
+        <th style="text-align:left;padding:0.5rem 0.6rem;border-bottom:2px solid var(--border);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">E-Mail</th>
+        <th style="text-align:left;padding:0.5rem 0.6rem;border-bottom:2px solid var(--border);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Link</th>
+      </tr></thead>
+      <tbody>${tableRows || '<tr><td colspan="4" style="padding:0.75rem;color:var(--muted)">Keine Mitglieder mit PIN und E-Mail vorhanden.</td></tr>'}</tbody>
+    </table></div>${fehlendHtml}`;
+
+  document.getElementById('m-direktlinks').style.display = 'flex';
+}
+
+function kopiereDirektlinks() {
+  const d = window._direktlinksDaten || [];
+  if (!d.length) { alert('Keine Mitglieder mit PIN und E-Mail vorhanden.'); return; }
+  const header = ['E-Mail', 'Vorname', 'Nachname', 'Link'].join('\t');
+  const rows = d.map(x => [x.email, x.vorname, x.nachname, x.link].join('\t'));
+  const text = [header, ...rows].join('\n');
+  const fertig = () => alert('Kopiert (' + d.length + ' Mitglieder) – bereit zum Einfügen in Mailmeteor / Google Sheets.');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(fertig).catch(() => dlFallbackKopieren(text, fertig));
+  } else {
+    dlFallbackKopieren(text, fertig);
+  }
+}
+
+function dlFallbackKopieren(text, onOk) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); onOk && onOk(); }
+  catch (e) { alert('Kopieren fehlgeschlagen – bitte manuell markieren und kopieren.'); }
+  document.body.removeChild(ta);
+}
+
+// ════════════════════════════════════════════════════════════════════════
 // MITGLIED – FLOW
 // ════════════════════════════════════════════════════════════════════════
 async function goMemberStart() {
@@ -785,6 +847,7 @@ async function goMemberStart() {
   if (!sitzung || sitzung.status === 'vorbereitung') {
     alertEl.textContent = 'Keine aktive Abstimmung – bitte warte auf die Leitung.';
     alertEl.style.display = 'block';
+    showScreen('s-start');
     return;
   }
 
@@ -809,15 +872,6 @@ async function ladeMemberNamen() {
     ).join('');
   sel.onchange = () => pruefeObAbgestimmt(sel.value);
   document.getElementById('btnWeiter').disabled = true;
-
-  // Ein-Klick: ID aus URL → Name auto-wählen und direkt prüfen
-  if (window._urlId) {
-    const member = anwesendeListe.find(m => m.id === window._urlId);
-    if (member) {
-      sel.value = window._urlId;
-      await pruefeObAbgestimmt(window._urlId);
-    }
-  }
 }
 
 async function pruefeObAbgestimmt(mid) {
@@ -845,23 +899,6 @@ async function pruefeObAbgestimmt(mid) {
     document.getElementById('btnWeiter').disabled = false;
     return;
   }
-
-  // PIN aus URL? → unsichtbar prüfen, kein Feld zeigen
-  if (window._urlPin) {
-    if (!currentMitglied?.pin) {
-      document.getElementById('pinNichtGesetzt').style.display = 'block';
-      return;
-    }
-    if (window._urlPin === String(currentMitglied.pin)) {
-      document.getElementById('btnWeiter').disabled = false;
-      // Ein-Klick: direkt zur Abstimmung wenn ID auch aus URL kam
-      if (window._urlId) setTimeout(() => pinOderWeiter(), 300);
-    } else {
-      document.getElementById('pinFehler').style.display = 'block';
-    }
-    return;
-  }
-
   if (!currentMitglied?.pin) {
     document.getElementById('pinNichtGesetzt').style.display = 'block';
     return;
@@ -872,7 +909,7 @@ async function pruefeObAbgestimmt(mid) {
 }
 
 function pinOderWeiter() {
-  if (!currentSitzung.pin_erforderlich || window._urlPin) {
+  if (!currentSitzung.pin_erforderlich) {
     zeigeAbstimmung();
     return;
   }
@@ -891,17 +928,50 @@ document.getElementById('memberPin')
   .addEventListener('keydown', e => { if (e.key === 'Enter') pinOderWeiter(); });
 
 // ════════════════════════════════════════════════════════════════════════
-// START: URL-Parameter prüfen
+// DIREKTLINK: ?m=<mitglied_id>&p=<pin> identifiziert automatisch und
+// springt bei offener Abstimmung direkt zur Stimmabgabe.
 // ════════════════════════════════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded', () => {
+async function versucheDirektlink() {
   const params = new URLSearchParams(window.location.search);
-  if (params.has('mitglied')) {
-    window._urlPin = params.get('pin') || null;
-    window._urlId  = params.get('id')  || null;
-    goMemberStart();
+  const mid = params.get('m');
+  const pin = params.get('p');
+  if (!mid || !pin) return false;
+
+  const sitzung = await checkActiveSitzung();
+  if (!sitzung || sitzung.status !== 'offen') return false;
+  currentSitzung = sitzung;
+
+  await ladeMemberNamen();
+  const m = anwesendeListe.find(x => x.id === mid);
+  if (!m) return false;
+  if (currentSitzung.pin_erforderlich && String(m.pin) !== String(pin)) return false;
+
+  setRoleBadge('Mitglied');
+  const sel = document.getElementById('memberSelect');
+  if (sel) sel.value = m.id;
+
+  const { data: hat } = await sb
+    .from('p_hat_abgestimmt').select('id')
+    .eq('sitzung_id', currentSitzung.id).eq('mitglied_id', m.id).limit(1);
+  if (hat?.length) {
+    showScreen('s-member-name');
+    document.getElementById('bereitsAbgestimmt').style.display = 'block';
+    starteWartenAufEnde();
+    return true;
+  }
+
+  currentMitglied = m;
+  zeigeAbstimmung();
+  return true;
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('m')) {
+    const ok = await versucheDirektlink();
+    if (!ok) goMemberStart();
   }
 });
-
 
 function zeigeAbstimmung() {
   currentVote = null;
@@ -1018,7 +1088,7 @@ async function zeigeErgebnis() {
   const weg   = wegA ? 'A' : wegB ? 'B' : null;
 
   const pct   = (n, d) => d > 0 ? Math.round(n/d*100) : 0;
-  const pctS  = (n, d) => d > 0 ? Math.round(n/d*100) + '\u202f%' : '–';
+  const pctS  = (n, d) => d > 0 ? Math.round(n/d*100) + ' %' : '–';
 
   const istAdmin = sessionStorage.getItem('rkc_admin') === '1';
 
@@ -1041,8 +1111,8 @@ async function zeigeErgebnis() {
     const klasse = uebernommen ? 'uebernommen' : 'abgelehnt';
     if (uebernommen) {
       const wegText = weg === 'A'
-        ? `Die 2/3-Mehrheit (${pctS(jaGes,nGesamt)}\u202fges.) und das 51\u202f%-Quorum der Stimmgruppe (${pctS(jaSG,nSG)}\u202fSG) wurden erfüllt (Weg\u202fA, Regel\u202f2).`
-        : `Die einfache Mehrheit (${pctS(jaGes,nGesamt)}\u202fges.) und das ¾-Quorum der Stimmgruppe (${pctS(jaSG,nSG)}\u202fSG) wurden erfüllt (Weg\u202fB, Regel\u202f3).`;
+        ? `Die 2/3-Mehrheit (${pctS(jaGes,nGesamt)} ges.) und das 51 %-Quorum der Stimmgruppe (${pctS(jaSG,nSG)} SG) wurden erfüllt (Weg A, Regel 2).`
+        : `Die einfache Mehrheit (${pctS(jaGes,nGesamt)} ges.) und das ¾-Quorum der Stimmgruppe (${pctS(jaSG,nSG)} SG) wurden erfüllt (Weg B, Regel 3).`;
       erklaerung = `<div class="erklaerung ${klasse}">
         Von ${nGesamt} stimmberechtigten Mitgliedern (davon ${nSG} aus dem ${kandidatSG}) stimmten
         <strong>${jaGes}</strong> für die Übernahme und <strong>${neinGes}</strong> dagegen.
@@ -1052,9 +1122,9 @@ async function zeigeErgebnis() {
     } else {
       erklaerung = `<div class="erklaerung ${klasse}">
         Von ${nGesamt} stimmberechtigten Mitgliedern (davon ${nSG} aus dem ${kandidatSG}) stimmten
-        <strong>${jaGes}</strong> für die Übernahme (${pctS(jaGes,nGesamt)}\u202fges. / ${pctS(jaSG,nSG)}\u202fSG)
+        <strong>${jaGes}</strong> für die Übernahme (${pctS(jaGes,nGesamt)} ges. / ${pctS(jaSG,nSG)} SG)
         und <strong>${neinGes}</strong> dagegen.
-        Weder die 2/3-Mehrheit mit 51\u202f%-SG-Quorum noch die einfache Mehrheit mit 75\u202f%-SG-Quorum wurden erreicht.
+        Weder die 2/3-Mehrheit mit 51 %-SG-Quorum noch die einfache Mehrheit mit 75 %-SG-Quorum wurden erreicht.
         <strong>Empfehlung: Ablehnung.</strong>
       </div>`;
     }
@@ -1077,14 +1147,14 @@ async function zeigeErgebnis() {
             <div class="chart-bar-bg">
               <div class="chart-bar ja" style="width:${jaGesP}%">${jaGesP > 8 ? jaGesP+'%' : ''}</div>
             </div>
-            <div class="chart-sublabel">Schwelle Weg A: 67\u202f% &nbsp;·&nbsp; Weg B: 51\u202f%</div>
+            <div class="chart-sublabel">Schwelle Weg A: 67 % &nbsp;·&nbsp; Weg B: 51 %</div>
           </div>
           <div class="chart-row">
             <div class="chart-label"><span>Ja – ${kandidatSG}</span><span>${jaSG} von ${nSG}</span></div>
             <div class="chart-bar-bg">
               <div class="chart-bar ja" style="width:${jaSGP}%">${jaSGP > 8 ? jaSGP+'%' : ''}</div>
             </div>
-            <div class="chart-sublabel">Schwelle Weg A: 51\u202f% &nbsp;·&nbsp; Weg B: 75\u202f%</div>
+            <div class="chart-sublabel">Schwelle Weg A: 51 % &nbsp;·&nbsp; Weg B: 75 %</div>
           </div>
           <div class="chart-row" style="margin-top:0.5rem">
             <div class="chart-label"><span>Nein – Gesamt</span><span>${neinGes} von ${nGesamt}</span></div>
@@ -1141,7 +1211,7 @@ function exportCSV() {
      pctS(d.jaGes, d.nGesamt), pctS(d.jaSG, d.nSG),
      wegT, empf].join(';')
   ];
-  const csv  = '\uFEFF' + lines.join('\r\n');
+  const csv  = '﻿' + lines.join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
