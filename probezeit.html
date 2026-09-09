@@ -436,7 +436,7 @@
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('m-direktlinks').style.display='none'">Schließen</button>
     </div>
     <div class="alert alert-info" style="font-size:0.82rem">
-      Jeder Link identifiziert das Mitglied automatisch (Name + PIN) und führt bei offener Abstimmung direkt zur Stimmabgabe.
+      Nur die für diese Abstimmung als anwesend markierten Mitglieder werden aufgeführt. Jeder Link identifiziert das Mitglied automatisch (Name + PIN) und führt bei offener Abstimmung direkt zur Stimmabgabe.
       Zum Versand: Tabelle unten kopieren und in Mailmeteor bzw. eine Google-Sheets-Vorlage einfügen.
     </div>
     <div id="dlBody"></div>
@@ -548,7 +548,6 @@ function checkLogin() {
 
 async function adminNachLogin() {
   setRoleBadge('Leitung');
-  document.getElementById('btnDirektlinks').style.display = 'inline-block';
   showScreen('s-admin-sitzung');
   await ladeSitzungsStatus();
 }
@@ -570,11 +569,13 @@ async function ladeSitzungsStatus() {
   const sitzung = await checkActiveSitzung();
   const infoEl  = document.getElementById('sitzungInfo');
   const btnEl   = document.getElementById('sitzungBtnRow');
+  const dlBtn   = document.getElementById('btnDirektlinks');
 
   if (!sitzung) {
     const { data: letzte } = await sb
       .from('p_sitzungen').select('*').eq('status', 'geschlossen')
       .order('erstellt_am', { ascending: false }).limit(1);
+    dlBtn.style.display = 'none';
     infoEl.innerHTML = `
       <div class="alert alert-info">Keine aktive Abstimmung vorhanden.</div>
       ${letzte?.[0] ? `
@@ -590,6 +591,7 @@ async function ladeSitzungsStatus() {
 
   } else if (sitzung.status === 'vorbereitung') {
     currentSitzung = sitzung;
+    dlBtn.style.display = 'none';
     infoEl.innerHTML = `
       <div class="alert alert-warn">Abstimmung in Vorbereitung – noch nicht geöffnet.</div>
       ${kandidatBox(sitzung.kandidat_name, sitzung.kandidat_sg)}`;
@@ -600,6 +602,7 @@ async function ladeSitzungsStatus() {
   } else if (sitzung.status === 'offen') {
     currentSitzung = sitzung;
     await ladeAnwesenheitFuerSitzung();
+    dlBtn.style.display = 'inline-block';
     infoEl.innerHTML = `
       <div class="alert alert-ok">✓ Abstimmung läuft.</div>
       ${kandidatBox(sitzung.kandidat_name, sitzung.kandidat_sg)}`;
@@ -707,6 +710,7 @@ async function sitzungOeffnen() {
   await sb.from('p_sitzungen').update({ status: 'offen' }).eq('id', currentSitzung.id);
   currentSitzung.status = 'offen';
   await ladeAnwesenheitFuerSitzung();
+  document.getElementById('btnDirektlinks').style.display = 'inline-block';
 
   document.getElementById('monitorKandidatBox').innerHTML =
     kandidatBox(currentSitzung.kandidat_name, currentSitzung.kandidat_sg);
@@ -750,6 +754,7 @@ async function abstimmungSchliessen() {
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
   await sb.from('p_sitzungen').update({ status: 'geschlossen' }).eq('id', currentSitzung.id);
   currentSitzung.status = 'geschlossen';
+  document.getElementById('btnDirektlinks').style.display = 'none';
   await zeigeErgebnis();
   // Erinnerung: Ergebnis sichern
   setTimeout(() => {
@@ -774,7 +779,11 @@ async function ladeLetztesErgebnis(sitzungId) {
 function dlEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 async function openDirektlinks() {
-  const { data, error } = await sb.from('mitglieder').select('id, vorname, nachname, email, pin').order('nachname');
+  if (!anwesendeListe.length) { alert('Keine Anwesenheitsliste für diese Abstimmung vorhanden.'); return; }
+
+  const { data, error } = await sb.from('mitglieder')
+    .select('id, vorname, nachname, email, pin')
+    .in('id', anwesendeListe.map(m => m.id));
   if (error) { alert('Fehler: ' + error.message); return; }
 
   const base = location.origin + location.pathname;

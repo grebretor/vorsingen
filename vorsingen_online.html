@@ -418,7 +418,7 @@
       <button class="btn btn-ghost btn-sm" onclick="document.getElementById('m-direktlinks').style.display='none'">Schließen</button>
     </div>
     <div class="alert alert-info" style="font-size:0.82rem">
-      Jeder Link identifiziert das Mitglied automatisch (Name + PIN) und führt bei offener Abstimmung direkt zur Stimmabgabe.
+      Nur die für diese Sitzung als anwesend markierten Mitglieder werden aufgeführt. Jeder Link identifiziert das Mitglied automatisch (Name + PIN) und führt bei offener Abstimmung direkt zur Stimmabgabe.
       Zum Versand: Tabelle unten kopieren und in Mailmeteor bzw. eine Google-Sheets-Vorlage einfügen.
     </div>
     <div id="dlBody"></div>
@@ -539,7 +539,6 @@ function checkLogin() {
 
 async function adminNachLogin() {
   setRoleBadge('Leitung');
-  document.getElementById('btnDirektlinks').style.display = 'inline-block';
   showScreen('s-admin-sitzung');
   await ladeSitzungsStatus();
 }
@@ -551,6 +550,7 @@ async function ladeSitzungsStatus() {
   const sitzung = await checkActiveSitzung();
   const infoEl  = document.getElementById('sitzungInfo');
   const btnEl   = document.getElementById('sitzungBtnRow');
+  const dlBtn   = document.getElementById('btnDirektlinks');
 
   if (!sitzung) {
     // Letzte abgeschlossene Sitzung anzeigen
@@ -561,6 +561,7 @@ async function ladeSitzungsStatus() {
       .order('erstellt_am', { ascending: false })
       .limit(1);
 
+    dlBtn.style.display = 'none';
     infoEl.innerHTML = `
       <div class="alert alert-info">Keine aktive Sitzung vorhanden.</div>
       ${letzte?.[0] ? `<p style="font-size:0.85rem;color:var(--muted)">Letzte Sitzung: ${new Date(letzte[0].erstellt_am).toLocaleDateString('de-DE')}</p>` : ''}`;
@@ -570,6 +571,7 @@ async function ladeSitzungsStatus() {
   } else if (sitzung.status === 'vorbereitung') {
     currentSitzung = sitzung;
     await ladeKandidatenFuerSitzung();
+    dlBtn.style.display = 'none';
     infoEl.innerHTML = `
       <div class="alert alert-warn">Sitzung in Vorbereitung – noch nicht geöffnet.</div>
       <p style="font-size:0.85rem;color:var(--muted)">Erstellt: ${new Date(sitzung.erstellt_am).toLocaleString('de-DE')}</p>`;
@@ -583,6 +585,7 @@ async function ladeSitzungsStatus() {
     currentSitzung = sitzung;
     await ladeKandidatenFuerSitzung();
     await ladeAnwesenheitFuerSitzung();
+    dlBtn.style.display = 'inline-block';
     infoEl.innerHTML = `<div class="alert alert-ok">✓ Abstimmung ist geöffnet.</div>`;
     btnEl.innerHTML = `
       <span></span>
@@ -761,6 +764,7 @@ async function sitzungSpeichernUndOeffnen() {
   currentSitzung.status = 'offen';
 
   await ladeAnwesenheitFuerSitzung();
+  document.getElementById('btnDirektlinks').style.display = 'inline-block';
   showScreen('s-admin-monitor');
   starteMonitor();
 }
@@ -805,6 +809,7 @@ async function abstimmungSchliessen() {
   if (realtimeSub) { clearInterval(realtimeSub); realtimeSub = null; }
   await sb.from('v_sitzungen').update({ status: 'geschlossen' }).eq('id', currentSitzung.id);
   currentSitzung.status = 'geschlossen';
+  document.getElementById('btnDirektlinks').style.display = 'none';
   await zeigeErgebnis();
 }
 
@@ -814,7 +819,11 @@ async function abstimmungSchliessen() {
 function dlEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 async function openDirektlinks() {
-  const { data, error } = await sb.from('mitglieder').select('id, vorname, nachname, email, pin').order('nachname');
+  if (!anwesendeListe.length) { alert('Keine Anwesenheitsliste für diese Sitzung vorhanden.'); return; }
+
+  const { data, error } = await sb.from('mitglieder')
+    .select('id, vorname, nachname, email, pin')
+    .in('id', anwesendeListe.map(m => m.id));
   if (error) { alert('Fehler: ' + error.message); return; }
 
   const base = location.origin + location.pathname;
