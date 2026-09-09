@@ -565,7 +565,7 @@ async function ladeSitzungsStatus() {
       <div class="alert alert-info">Keine aktive Sitzung vorhanden.</div>
       ${letzte?.[0] ? `<p style="font-size:0.85rem;color:var(--muted)">Letzte Sitzung: ${new Date(letzte[0].erstellt_am).toLocaleDateString('de-DE')}</p>` : ''}`;
     btnEl.innerHTML = `
-      <span></span>
+      ${letzte?.[0] ? `<button class="btn btn-outline" onclick="ladeLetztesErgebnis('${letzte[0].id}')">📋 Letzte Auswertung anzeigen</button>` : '<span></span>'}
       <button class="btn btn-primary" onclick="neueSitzungAnlegen()">+ Neue Sitzung anlegen</button>`;
   } else if (sitzung.status === 'vorbereitung') {
     currentSitzung = sitzung;
@@ -588,6 +588,16 @@ async function ladeSitzungsStatus() {
       <span></span>
       <button class="btn btn-primary" onclick="showScreen('s-admin-monitor'); starteMonitor()">Zum Monitor →</button>`;
   }
+}
+
+async function ladeLetztesErgebnis(sitzungId) {
+  const { data: sitzung } = await sb
+    .from('v_sitzungen').select('*').eq('id', sitzungId).single();
+  if (!sitzung) { alert('Sitzung nicht gefunden.'); return; }
+  currentSitzung = sitzung;
+  await ladeKandidatenFuerSitzung();
+  await ladeAnwesenheitFuerSitzung();
+  await zeigeErgebnis();
 }
 
 async function neueSitzungAnlegen() {
