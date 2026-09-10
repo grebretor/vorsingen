@@ -1177,7 +1177,7 @@ async function zeigeErgebnis() {
     else if (besteht(effGast, sgEffG)){ ergebnis = 'Gast';   effFuerRegel4 = effGast; }
     else                              { ergebnis = 'Nein';   effFuerRegel4 = 0;       }
 
-    const pct = (n, d) => d > 0 ? Math.round(n/d*100) + ' %' : '–';
+    const pct = (n, d) => d > 0 ? Math.round(n/d*100) + ' %' : '–';
     return {
       kandidat: k, ergebnis, effFuerRegel4,
       roh: r, nGesamt, nSG,
@@ -1191,8 +1191,13 @@ async function zeigeErgebnis() {
   showScreen('s-ergebnis');
 }
 
+// Regel 4 (Konkurrenzregel): gilt bewusst NUR für die Kategorie "Vakanz",
+// weil es dort in der Regel nur ein bis zwei tatsächlich freie Stellen
+// gleichzeitig gibt. Bei "Gast" (freie Mitarbeit) gibt es keine solche
+// Stellenbegrenzung, daher konkurrieren dort mehrere Kandidat:innen
+// derselben Stimmgruppe nicht gegeneinander.
 function anwendeRegel4(ergebnisse) {
-  ['Vakanz', 'Gast'].forEach(kat => {
+  ['Vakanz'].forEach(kat => {
     STIMMGRUPPEN.forEach(sg => {
       const gruppe = ergebnisse.filter(e => e.ergebnis === kat && e.kandidat.stimmgruppe === sg);
       if (gruppe.length > 1) {
@@ -1207,7 +1212,7 @@ function anwendeRegel4(ergebnisse) {
 const ESTIL = { 'Vakanz':['#2a6e3f','★'],'Gast':['#b8860b','✓'],'Nein':['#9c2020','✗'] };
 function ergebnisTag(e) {
   const [bg, icon] = ESTIL[e.ergebnis];
-  const label = e.regel4Zurueck ? `${e.ergebnis} (Regel 4)` : e.ergebnis;
+  const label = e.regel4Zurueck ? `${e.ergebnis} (Regel 4)` : e.ergebnis;
   return `<span style="background:${e.regel4Zurueck?'#888':bg};color:white;padding:0.2rem 0.55rem;border-radius:3px;font-size:0.78rem;font-weight:700">${icon} ${label}</span>`;
 }
 
@@ -1221,7 +1226,7 @@ function renderErgebnis(ergebnisse, total) {
   document.getElementById('ergebnisMeta').innerHTML =
     `Anwesende Mitglieder: <strong>${total}</strong> &nbsp;·&nbsp; Kandidaten: <strong>${kandidaten.length}</strong>` +
     (istAdmin ? `<br><small>Rohstimmen (Summe je Zeile = ${total}). Prozente in der entscheidenden Spalte (Ges. / SG).
-     Zur Leitung werden nur Empfehlungen mitgeteilt (Regel 5).</small>` : '');
+     Dem Büro bzw. dem Chordirektor werden nur Empfehlungen mitgeteilt (Regel 5).</small>` : '');
 
   if (istAdmin) {
     const rows = ergebnisse.map(e => {
@@ -1320,31 +1325,29 @@ function bestehtWeg(eff, sgEff, nGesamt, nSG) {
 
 function generiereText(e) {
   const { roh: r, eff, sg, nGesamt, nSG, ergebnis, kandidat: k } = e;
-  const p = (n, d) => d > 0 ? Math.round(n/d*100)+' %' : '–';
+  const p = (n, d) => d > 0 ? Math.round(n/d*100)+' %' : '–';
   const sg_label = `${nSG} aus dem ${k.stimmgruppe}`;
 
   if (ergebnis === 'Nein') {
     return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) stimmten ` +
       `${r.vV}× Vakanz, ${r.vG}× Gast und ${r.vN}× Nein. ` +
-      `Auch unter Berücksichtigung der Stimmenkaskade (Regel 6) wurde für keine ` +
+      `Auch unter Berücksichtigung der Stimmenkaskade (Regel 6) wurde für keine ` +
       `Kategorie eine der erforderlichen Mehrheiten erreicht. <strong>Empfehlung: Abgelehnt.</strong>`;
   }
   let einl = '';
   if (ergebnis === 'Gast')
-    einl = `Für eine Vakanz-Einstellung reichte es nicht aus (${p(r.vV,nGesamt)} ges. / ${p(sg.vakanz,nSG)} SG). `;
+    einl = `Für eine Vakanz-Einstellung reichte es nicht aus (${p(r.vV,nGesamt)} ges. / ${p(sg.vakanz,nSG)} SG). `;
 
 
   const effN = ergebnis==='Vakanz' ? r.vV     : eff.gast;
   const sgE  = ergebnis==='Vakanz' ? sg.vakanz : sg.gast;
-  const katL  = ergebnis==='Vakanz' ? 'Vakanz'
-              : ergebnis==='Gast'   ? 'Gast (Vakanz + Gast kaskadiert)'
-              : 'Verstärkung (V + G + S kaskadiert)';
+  const katL  = ergebnis==='Vakanz' ? 'Vakanz' : 'Gast (Vakanz + Gast kaskadiert)';
   const weg   = bestehtWeg(effN, sgE, nGesamt, nSG);
   const wegT  = weg==='A'
-    ? `Die 2/3-Mehrheit (${p(effN,nGesamt)} ges.) und das 51 %-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg A, Regel 2).`
-    : `Die einfache Mehrheit (${p(effN,nGesamt)} ges.) und das ¾-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg B, Regel 3).`;
+    ? `Die 2/3-Mehrheit (${p(effN,nGesamt)} ges.) und das 51 %-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg A, Regel 2).`
+    : `Die einfache Mehrheit (${p(effN,nGesamt)} ges.) und das ¾-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg B, Regel 3).`;
   const r4 = e.regel4Zurueck
-    ? ` Ein anderer Kandidat derselben Stimmgruppe erreichte dieselbe Kategorie mit mehr Stimmen — ${k.name} wird zurückgestellt (Regel 4).`
+    ? ` Ein anderer Kandidat derselben Stimmgruppe erreichte dieselbe Kategorie mit mehr Stimmen — ${k.name} wird zurückgestellt (Regel 4).`
     : '';
 
   return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) entfielen ${effN} Stimmen auf ${katL}. ` +
