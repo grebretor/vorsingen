@@ -1225,7 +1225,7 @@ function renderErgebnis(ergebnisse, total) {
 
   document.getElementById('ergebnisMeta').innerHTML =
     `Anwesende Mitglieder: <strong>${total}</strong> &nbsp;·&nbsp; Kandidaten: <strong>${kandidaten.length}</strong>` +
-    (istAdmin ? `<br><small>Rohstimmen (Summe je Zeile = ${total}). Prozente in der entscheidenden Spalte (Ges. / SG).
+    (istAdmin ? `<br><small>Rohstimmen (Summe je Zeile = ${total}). Prozente (Ges. / SG) werden für Vakanz und Gast angezeigt, auch bei abgelehnten Kandidat:innen.
      Dem Büro bzw. dem Chordirektor werden nur Empfehlungen mitgeteilt (Regel 5).</small>` : '');
 
   if (istAdmin) {
@@ -1233,8 +1233,8 @@ function renderErgebnis(ergebnisse, total) {
       const { roh: r, nGesamt, nSG, ergebnis } = e;
       const k = e.kandidat;
       const pct = (n, sg) => `<div style="font-size:0.7rem;color:var(--muted)">${nGesamt>0?Math.round(n/nGesamt*100)+'%':'–'} / ${nSG>0?Math.round(sg/nSG*100)+'%':'–'}</div>`;
-      const pV = ergebnis==='Vakanz'      ? pct(r.vV,        e.sg.vakanz) : '';
-      const pG = ergebnis==='Gast'        ? pct(e.eff.gast,  e.sg.gast)   : '';
+      const pV = pct(r.vV,       e.sg.vakanz);
+      const pG = pct(e.eff.gast, e.sg.gast);
         return `<tr>
         <td><strong>${k.name}</strong></td>
         <td>${badge(k.stimmgruppe)}</td>
@@ -1323,16 +1323,50 @@ function bestehtWeg(eff, sgEff, nGesamt, nSG) {
   return null;
 }
 
+// Beschreibt für eine einzelne Kategorie (Vakanz oder Gast), wie nah man an
+// Weg A bzw. Weg B war, und benennt gezielt, ob die Gesamt- oder die
+// Stimmgruppen-Schwelle (oder beide) nicht erreicht wurde. Wird nur für
+// abgelehnte Kandidat:innen gebraucht, damit auch bei "Nein" nachvollziehbar
+// bleibt, woran es lag (z. B. Gesamt-Mehrheit klar erreicht, aber die eigene
+// Stimmgruppe knapp unter dem Quorum geblieben).
+function bewerteKategorie(eff, sgEff, nGesamt, nSG, label) {
+  const rG  = nGesamt > 0 ? eff / nGesamt : 0;
+  const rSG = nSG > 0 ? sgEff / nSG : 0;
+  const pG  = nGesamt > 0 ? Math.round(rG * 100) + ' %' : '–';
+  const pSG = nSG > 0 ? Math.round(rSG * 100) + ' %' : '–';
+
+  // Nur tatsächlich verfehlte Schwellen betrachten (diff > 0) – eine bereits
+  // erfüllte Teilbedingung (z. B. die SG-Schwelle bei knapp verfehlter
+  // Gesamt-Schwelle) soll nicht fälschlich als "knapper Fehlschlag" auftauchen.
+  const schwellen = [
+    { weg: 'A', teil: 'Gesamt-Schwelle',        ziel: '≥ 67 % ges.', diff: Math.max(0, Math.ceil((2/3  - rG)  * 100 - 1e-9)) },
+    { weg: 'A', teil: 'Stimmgruppen-Schwelle', ziel: '≥ 51 % SG',  diff: Math.max(0, Math.ceil((0.51 - rSG) * 100 - 1e-9)) },
+    { weg: 'B', teil: 'Gesamt-Schwelle',        ziel: '> 50 % ges.',  diff: Math.max(0, Math.ceil((0.5  - rG)  * 100 - 1e-9)) },
+    { weg: 'B', teil: 'Stimmgruppen-Schwelle', ziel: '≥ 75 % SG',  diff: Math.max(0, Math.ceil((0.75 - rSG) * 100 - 1e-9)) },
+  ].filter(s => s.diff > 0);
+
+  const pp = n => `${n} Prozentpunkt${n === 1 ? '' : 'e'}`;
+  const naechste = schwellen.length ? schwellen.reduce((a, b) => (b.diff < a.diff ? b : a)) : null;
+
+  const hinweis = naechste && naechste.diff <= 5
+    ? `am nächsten kam die ${naechste.teil} von Weg ${naechste.weg} (${naechste.ziel}) – nur ${pp(naechste.diff)} entfernt`
+    : `lag deutlich unter beiden möglichen Wegen (Weg A: ≥ 67 % ges. & ≥ 51 % SG; Weg B: > 50 % ges. & ≥ 75 % SG)`;
+
+  return `${label}: ${pG} gesamt / ${pSG} SG – ${hinweis}`;
+}
+
 function generiereText(e) {
   const { roh: r, eff, sg, nGesamt, nSG, ergebnis, kandidat: k } = e;
   const p = (n, d) => d > 0 ? Math.round(n/d*100)+' %' : '–';
   const sg_label = `${nSG} aus dem ${k.stimmgruppe}`;
 
   if (ergebnis === 'Nein') {
+    const zeileVakanz = bewerteKategorie(r.vV, sg.vakanz, nGesamt, nSG, 'Vakanz');
+    const zeileGast   = bewerteKategorie(eff.gast, sg.gast, nGesamt, nSG, 'Gast (kaskadiert aus Vakanz + Gast)');
     return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) stimmten ` +
       `${r.vV}× Vakanz, ${r.vG}× Gast und ${r.vN}× Nein. ` +
-      `Auch unter Berücksichtigung der Stimmenkaskade (Regel 6) wurde für keine ` +
-      `Kategorie eine der erforderlichen Mehrheiten erreicht. <strong>Empfehlung: Abgelehnt.</strong>`;
+      `${zeileVakanz}. ${zeileGast}. ` +
+      `<strong>Empfehlung: Abgelehnt.</strong>`;
   }
   let einl = '';
   if (ergebnis === 'Gast')
