@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Indi-Kalender · Büroansicht · RIAS Kammerchor</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:#f7f5f0;--sur:#fff;--sur2:#f2f0eb;--sur3:#e8e5de;
+  --txt:#1a1714;--txm:#6b6560;--txd:#9a948e;
+  --brd:#e0ddd6;--brdl:#ede9e2;
+  --gld:#8b6914;--gldd:#fdf6e3;
+  --grn:#1a6b3a;--grnd:#e8f5ee;
+  --amb:#8b5c00;--ambd:#fef3e2;
+  --red:#8b1a1a;--redd:#fdeaea;
+  --blu:#1a4a8b;--blud:#e8f0fd;
+  --rad:4px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;}
+
+/* LOGIN */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-box{background:var(--sur);border:1px solid var(--brd);border-radius:8px;padding:36px 32px;width:100%;max-width:360px;text-align:center;}
+.login-box h1{font-size:18px;font-weight:400;color:var(--gld);margin-bottom:4px;}
+.login-box p{font-size:12px;color:var(--txd);margin-bottom:24px;}
+.login-box input{display:block;width:100%;background:var(--sur2);border:1.5px solid var(--brd);color:var(--txt);font-family:inherit;font-size:15px;padding:11px 14px;border-radius:var(--rad);outline:none;margin-bottom:12px;}
+.login-box input:focus{border-color:var(--gld);}
+.login-err{font-size:12px;color:var(--red);margin-bottom:10px;display:none;}
+
+/* HEADER */
+header{background:#1a4a2e;color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+header h1{font-size:16px;font-weight:400;letter-spacing:.02em;}
+header .sub{font-size:11px;opacity:.6;margin-top:2px;}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+
+/* MAIN */
+main{max-width:900px;margin:0 auto;padding:20px 16px;}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:20px;}
+.stat{background:var(--sur);border:1px solid var(--brd);border-radius:6px;padding:14px 16px;}
+.stat-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--txd);margin-bottom:6px;}
+.stat-val{font-size:22px;font-weight:300;}
+
+/* FILTER BAR */
+.filter-bar{background:var(--sur);border:1px solid var(--brd);border-radius:6px;padding:12px 16px;margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.filter-bar select,.filter-bar input{background:var(--sur2);border:1px solid var(--brd);color:var(--txt);font-family:inherit;font-size:13px;padding:7px 10px;border-radius:var(--rad);outline:none;}
+.filter-bar label{font-size:11px;color:var(--txd);letter-spacing:.1em;text-transform:uppercase;}
+.btn{font-family:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;padding:8px 14px;border:1px solid var(--brd);color:var(--txm);background:var(--sur);cursor:pointer;border-radius:var(--rad);}
+.btn:hover{background:var(--sur2);}
+header .btn{background:none;border-color:rgba(255,255,255,.3);color:rgba(255,255,255,.85);}
+header .btn:hover{background:rgba(255,255,255,.1);}
+header .btn.aktiv{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.6);}
+.btn-csv{border-color:var(--gld);color:var(--gld);background:var(--gldd);}
+.btn-csv:hover{background:#f5e9c0;}
+
+/* TABLE */
+.tw{overflow-x:auto;background:var(--sur);border:1px solid var(--brd);border-radius:6px;}
+table{width:100%;border-collapse:collapse;}
+th{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--txd);padding:10px 14px;text-align:left;background:var(--sur2);border-bottom:2px solid var(--brd);}
+td{padding:11px 14px;font-size:13px;border-bottom:1px solid var(--brdl);}
+tr.date-row td{background:var(--sur2);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gld);font-weight:500;padding:8px 14px;}
+tr:last-child td{border-bottom:none;}
+
+/* BADGES */
+.badge{display:inline-block;font-size:10px;padding:3px 9px;border-radius:var(--rad);border:1px solid;}
+.bg{background:var(--grnd);color:var(--grn);border-color:#a8d5b8;}
+.bb{background:var(--ambd);color:var(--amb);border-color:#f0cc80;}
+.bs{background:var(--blud);color:var(--blu);border-color:#9ab8e8;}
+.ba{background:var(--redd);color:var(--red);border-color:#f0a8a8;}
+.bt{background:var(--sur3);color:var(--txm);border-color:var(--brd);}
+
+/* EMPTY */
+.es{text-align:center;padding:40px;color:var(--txd);font-size:13px;}
+
+/* FOOTER */
+footer{text-align:center;padding:20px;font-size:11px;color:var(--txd);border-top:1px solid var(--brd);margin-top:24px;}
+
+@media(max-width:500px){
+  header{flex-direction:column;align-items:flex-start;gap:8px;}
+  .hdr-right{width:100%;justify-content:flex-end;}
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="login-wrap">
+  <div class="login-box">
+    <h1>Indi-Kalender</h1>
+    <p>RIAS Kammerchor Berlin · Büroansicht</p>
+    <input type="password" id="pw-inp" placeholder="Passwort" onkeydown="if(event.key==='Enter')tryLogin()">
+    <div class="login-err" id="login-err">Falsches Passwort</div>
+    <button class="btn btn-csv" onclick="tryLogin()" style="width:100%;text-align:center;padding:11px">Anmelden</button>
+    <p style="font-size:11px;color:var(--txd);margin-top:16px">Version 1.2</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+  <header>
+    <div style="display:flex;align-items:center;gap:12px">
+      <img src="logo_rkc_white.png" alt="RIAS Kammerchor" style="height:36px;width:auto">
+      <div>
+        <h1>Indi-Kalender · Büroansicht</h1>
+        <div class="sub">RIAS Kammerchor Berlin</div>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <button class="btn" id="btn-abgleich" onclick="toggleView()" style="border-color:rgba(255,255,255,.4);color:rgba(255,255,255,.9);font-size:10px">&#128196; Datenabgleich</button>
+      <button class="btn btn-csv" onclick="csvEx()">&#8595; CSV</button>
+      <button class="btn" onclick="doLogout()" style="font-size:10px">Abmelden</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ANSICHT: Startseite (heute) -->
+    <div id="view-heute">
+      <div class="stats" id="stats"></div>
+      <div class="tw"><table>
+        <thead><tr>
+          <th>Mitglied</th><th>Stimme</th><th>Datum</th><th>Wochentag</th><th>Umfang</th><th>Status</th><th>Bemerkung</th>
+        </tr></thead>
+        <tbody id="tbl-heute"></tbody>
+      </table></div>
+      <div id="es-heute" class="es" style="display:none">Keine kommenden genehmigten oder beantragten Indis</div>
+    </div>
+
+    <!-- ANSICHT: Datenabgleich -->
+    <div id="view-abgleich" style="display:none">
+      <div class="stats" id="stats-abgleich"></div>
+      <div class="filter-bar">
+      <div>
+        <label>Jahr</label><br>
+        <select id="f-jahr" onchange="render()">
+          <option value="">Alle</option>
+        </select>
+      </div>
+      <div>
+        <label>Mitglied</label><br>
+        <select id="f-mit" onchange="render()">
+          <option value="">Alle</option>
+        </select>
+      </div>
+      <div>
+        <label>Stimmgruppe</label><br>
+        <select id="f-stimme" onchange="render()">
+          <option value="">Alle</option>
+          <option value="S">Sopran</option>
+          <option value="A">Alt</option>
+          <option value="T">Tenor</option>
+          <option value="B">Bass</option>
+        </select>
+      </div>
+      <div>
+        <label>Status</label><br>
+        <select id="f-status" onchange="render()">
+          <option value="">Alle</option>
+          <option value="genehmigt">Genehmigt</option>
+          <option value="beantragt">Beantragt</option>
+          <option value="genommen">Genommen</option>
+          <option value="abgelehnt">Abgelehnt</option>
+        </select>
+      </div>
+      <div style="flex:1;display:flex;align-items:flex-end;justify-content:flex-end">
+        <button class="btn" onclick="resetFilter()">Zurücksetzen</button>
+      </div>
+    </div>
+    <div id="mit-info" style="display:none;background:var(--sur);border:1px solid var(--brd);border-left:4px solid var(--gld);border-radius:6px;padding:14px 18px;margin-bottom:16px;display:none">
+      <div style="font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--txd);margin-bottom:10px" id="mit-info-name"></div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap" id="mit-info-stats"></div>
+    </div>
+
+    <div class="tw"><table>
+      <thead><tr>
+        <th>Mitglied</th>
+        <th>Stimme</th>
+        <th>Datum</th>
+        <th>Wochentag</th>
+        <th>Umfang</th>
+        <th>Status</th>
+        <th>Bemerkung</th>
+      </tr></thead>
+      <tbody id="tbl"></tbody>
+    </table></div>
+      <div id="es" class="es" style="display:none">Keine Einträge gefunden</div>
+    </div><!-- /view-abgleich -->
+  </main>
+
+  <footer>Indi-Verwaltung RIAS Kammerchor · Büroansicht · nur Lesen · Version 1.2</footer>
+</div>
+
+<script>
+var SUPABASE_URL = 'https://lqfoybhgtlyvnbtuwggi.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_MJUP_gLZccCY-UUlF1p7oQ_JB1hta_g';
+var BUERO_PW    = '12345'; // <-- Passwort hier eintragen
+
+var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+var D  = {m:[], a:[], g:[]};
+var WT = ['So','Mo','Di','Mi','Do','Fr','Sa'];
+var VN = {S:'Sopran',A:'Alt',T:'Tenor',B:'Bass'};
+var UL = {ganz:'Ganzer Tag',erste:'Erster Dienst',zweite:'Zweiter Dienst',sammlung:'Sammelindi'};
+
+function tryLogin() {
+  var pw = document.getElementById('pw-inp').value;
+  if (pw === BUERO_PW) {
+    sessionStorage.setItem('buero_auth','1');
+    document.getElementById('login-wrap').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    laden();
+  } else {
+    document.getElementById('login-err').style.display = 'block';
+    document.getElementById('pw-inp').value = '';
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem('buero_auth');
+  location.reload();
+}
+
+function td() { return new Date().toISOString().slice(0,10); }
+function fd(d) {
+  if (!d) return '-';
+  var p = d.split('-');
+  return p[2]+'.'+p[1]+'.'+p[0];
+}
+function mById(id) { return D.m.find(function(x){return x.id===id;}); }
+function wt(a) {
+  if (a.umfang==='sammlung') return parseFloat(a.anzahl)||2;
+  if (a.umfang==='erste'||a.umfang==='zweite') return 0.5;
+  return 1;
+}
+
+async function laden() {
+  try {
+    var [rm, ra, rg] = await Promise.all([
+      sb.from('mitglieder').select('*').order('nachname'),
+      sb.from('antraege').select('*').order('datum'),
+      sb.from('gutschriften').select('*').order('datum')
+    ]);
+    D.m = rm.data||[];
+    D.g = rg ? (rg.data||[]).map(function(x){x.mid=x.mitglied_id||'';return x;}) : [];
+    D.a = (ra.data||[]).map(function(x){
+      x.mid = x.mitglied_id||''; return x;
+    });
+    fillJahre();
+    fillMitglieder();
+    renderHeute();
+  } catch(e) {
+    document.getElementById('tbl').innerHTML =
+      '<tr><td colspan="7" style="color:var(--red);padding:20px">Fehler: '+e.message+'</td></tr>';
+  }
+}
+
+var _viewAbgleich = false;
+
+function toggleView() {
+  _viewAbgleich = !_viewAbgleich;
+  document.getElementById('view-heute').style.display    = _viewAbgleich ? 'none' : 'block';
+  document.getElementById('view-abgleich').style.display = _viewAbgleich ? 'block' : 'none';
+  var btn = document.getElementById('btn-abgleich');
+  btn.classList.toggle('aktiv', _viewAbgleich);
+  btn.textContent = _viewAbgleich ? '← Zurück' : '📄 Datenabgleich';
+  if (_viewAbgleich) renderAbgleich(); else renderHeute();
+}
+
+function renderHeute() {
+  var t = td();
+  var heute = D.a.filter(function(a){
+    return a.datum && a.datum >= t && (a.status==='genehmigt'||a.status==='beantragt');
+  }).sort(function(a,b){
+    if (a.datum!==b.datum) return a.datum<b.datum?-1:1;
+    var vo=['S','A','T','B'];
+    var ma=mById(a.mid), mb=mById(b.mid);
+    return vo.indexOf(ma?ma.stimme:'')-vo.indexOf(mb?mb.stimme:'');
+  });
+
+  var gen = heute.filter(function(a){return a.status==='genehmigt';}).length;
+  var beant = heute.filter(function(a){return a.status==='beantragt';}).length;
+  var next = heute[0];
+  var nextStr = next ? (function(){
+    var p=next.datum.split('-');
+    var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
+    return WT[d.getDay()]+', '+p[2]+'.'+p[1]+'.';
+  })() : '–';
+
+  document.getElementById('stats').innerHTML =
+    stat('Genehmigt (ab heute)', gen, 'var(--grn)') +
+    stat('Beantragt (offen)', beant, 'var(--amb)') +
+    stat('Nächster Indi-Tag', nextStr, 'var(--txt)') +
+    stat('Einträge gesamt', heute.length, 'var(--txm)');
+
+  var tb = document.getElementById('tbl-heute');
+  var es = document.getElementById('es-heute');
+  if (!heute.length) { tb.innerHTML=''; es.style.display='block'; return; }
+  es.style.display='none';
+  var lastDat = '';
+  tb.innerHTML = heute.map(function(a){
+    var m = mById(a.mid);
+    var stimme = m ? m.stimme : '';
+    var sBadge = {S:'bs',A:'ba',T:'bb',B:'bt'}[stimme]||'bt';
+    var stBadge = a.status==='genehmigt'
+      ? '<span class="badge bg">&#10003; Genehmigt</span>'
+      : '<span class="badge bb">&#8987; Beantragt</span>';
+    var dp=a.datum.split('-');
+    var dO=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));
+    var header = '';
+    if (a.datum !== lastDat) {
+      lastDat = a.datum;
+      header = '<tr class="date-row"><td colspan="7">'+WT[dO.getDay()]+', '+dp[2]+'.'+dp[1]+'.'+dp[0]+'</td></tr>';
+    }
+    var umfStr = a.umfang==='sammlung'?'Sammelindi ×'+(a.anzahl||2):(UL[a.umfang]||'Ganzer Tag');
+    return header+'<tr>'+
+      '<td style="font-weight:500">'+(m?m.vorname+' '+m.nachname:'?')+'</td>'+
+      '<td><span class="badge '+sBadge+'">'+(VN[stimme]||stimme)+'</span></td>'+
+      '<td>'+fd(a.datum)+'</td>'+
+      '<td style="color:var(--txd)">'+WT[dO.getDay()]+'</td>'+
+      '<td style="color:var(--txm);font-size:12px">'+umfStr+'</td>'+
+      '<td>'+stBadge+'</td>'+
+      '<td style="font-size:12px;color:var(--txm)">'+(a.bemerkung||'–')+'</td>'+
+      '</tr>';
+  }).join('');
+}
+
+function render() { renderAbgleich(); }
+function renderAbgleich() {
+
+function fillJahre() {
+  var jahre = {};
+  D.a.forEach(function(a){
+    if (!a.datum) return;
+    jahre[a.datum.slice(0,4)] = true;
+  });
+  var sel = document.getElementById('f-jahr');
+  Object.keys(jahre).sort().reverse().forEach(function(j){
+    var o = document.createElement('option');
+    o.value = j; o.textContent = j;
+    sel.appendChild(o);
+  });
+  sel.value = new Date().getFullYear().toString();
+}
+
+function fillMitglieder() {
+  var sel = document.getElementById('f-mit');
+  D.m.forEach(function(m){
+    var o = document.createElement('option');
+    o.value = m.id;
+    o.textContent = m.nachname+', '+m.vorname+' ('+m.stimme+')';
+    sel.appendChild(o);
+  });
+}
+
+function resetFilter() {
+  document.getElementById('f-jahr').value = new Date().getFullYear().toString();
+  document.getElementById('f-mit').value = '';
+  document.getElementById('f-stimme').value = '';
+  document.getElementById('f-status').value = '';
+  render();
+}
+
+function getFiltered() {
+  var fJ  = document.getElementById('f-jahr').value;
+  var fM  = document.getElementById('f-mit').value;
+  var fS  = document.getElementById('f-stimme').value;
+  var fSt = document.getElementById('f-status').value;
+  return D.a.filter(function(a){
+    if (!a.datum) return false;
+    if (fJ && !a.datum.startsWith(fJ)) return false;
+    if (fM && a.mid !== fM) return false;
+    var m = mById(a.mid);
+    if (fS && (!m || m.stimme!==fS)) return false;
+    if (fSt && a.status!==fSt) return false;
+    return true;
+  }).sort(function(a,b){
+    if (a.datum!==b.datum) return a.datum<b.datum?-1:1;
+    var ma=mById(a.mid), mb=mById(b.mid);
+    var vo=['S','A','T','B'];
+    return vo.indexOf(ma?ma.stimme:'')-vo.indexOf(mb?mb.stimme:'');
+  });
+}
+
+function mitInfo() {
+  var fM  = document.getElementById('f-mit').value;
+  var fJ  = document.getElementById('f-jahr').value;
+  var box = document.getElementById('mit-info');
+  if (!fM) { box.style.display='none'; return; }
+  var m = mById(fM);
+  if (!m) { box.style.display='none'; return; }
+  var yr = fJ ? parseInt(fJ) : new Date().getFullYear();
+  var vjEnd = (yr-1)+'-12-31';
+  var yrEnd = yr+'-12-31';
+
+  // Stand 31.12. Vorjahr
+  var gnVj = D.a.filter(function(a){
+    return a.mid===fM && a.status==='genommen' && a.datum && a.datum<=vjEnd;
+  }).reduce(function(s,a){return s+wt(a);},0);
+  var gutVj = D.g.filter(function(g){
+    return g.mid===fM && g.datum && g.datum<=vjEnd;
+  }).reduce(function(s,g){return s+parseFloat(g.anzahl);},0);
+  var kont = m.kontingent===null||m.kontingent===undefined||m.kontingent===''?3:parseFloat(m.kontingent);
+  var standVj = kont + gutVj - gnVj;
+
+  // Aktueller Stand (bis Ende des gewählten Jahres)
+  var gnJahr = D.a.filter(function(a){
+    return a.mid===fM && a.status==='genommen' && a.datum && a.datum<=yrEnd;
+  }).reduce(function(s,a){return s+wt(a);},0);
+  var gutJahr = D.g.filter(function(g){
+    return g.mid===fM && g.datum && g.datum<=yrEnd;
+  }).reduce(function(s,g){return s+parseFloat(g.anzahl);},0);
+  var standJahr = kont + gutJahr - gnJahr;
+
+  var vn2 = {S:'Sopran',A:'Alt',T:'Tenor',B:'Bass'};
+  document.getElementById('mit-info-name').textContent =
+    m.vorname+' '+m.nachname+' · '+(vn2[m.stimme]||m.stimme);
+  document.getElementById('mit-info-stats').innerHTML =
+    mStat('Stand 31.12.'+(yr-1), fNum(standVj)) +
+    mStat('Genommen '+yr, fNum(gnJahr-gnVj)) +
+    mStat('Gutschriften '+yr, fNum(gutJahr-gutVj)) +
+    mStat('Stand 31.12.'+yr, fNum(standJahr));
+  box.style.display='block';
+}
+
+function mStat(label, val) {
+  return '<div style="background:var(--sur2);border:1px solid var(--brd);border-radius:var(--rad);padding:10px 14px;min-width:100px">'
+    +'<div style="font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--txd);margin-bottom:4px">'+label+'</div>'
+    +'<div style="font-size:20px;font-weight:300">'+val+'</div></div>';
+}
+
+function fNum(n) { return Math.round(n*10)/10; }
+
+function render() {
+  var list = getFiltered();
+  var t = td();
+  mitInfo();
+
+  // Stats
+  var fJ = document.getElementById('f-jahr').value;
+  var aBase = fJ ? D.a.filter(function(a){return a.datum&&a.datum.startsWith(fJ);}) : D.a;
+  var gen = aBase.filter(function(a){return a.status==='genehmigt';}).length;
+  var beant = aBase.filter(function(a){return a.status==='beantragt';}).length;
+  var next = D.a.filter(function(a){return a.datum>=t&&(a.status==='genehmigt'||a.status==='beantragt');}).sort(function(a,b){return a.datum<b.datum?-1:1;})[0];
+  var nextStr = next ? (function(){
+    var p=next.datum.split('-');
+    var d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
+    return WT[d.getDay()]+', '+p[2]+'.'+p[1]+'.';
+  })() : '–';
+
+  document.getElementById('stats-abgleich').innerHTML =
+    stat('Genehmigt', gen, 'var(--grn)') +
+    stat('Beantragt', beant, 'var(--amb)') +
+    stat('Nächster (ab heute)', nextStr, 'var(--txt)') +
+    stat('Einträge', list.length, 'var(--txm)');
+
+  // Tabelle
+  var tb = document.getElementById('tbl');
+  var es = document.getElementById('es');
+  if (!list.length) { tb.innerHTML=''; es.style.display='block'; return; }
+  es.style.display='none';
+
+  var lastDat = '';
+  var rows = '';
+  list.forEach(function(a){
+    var m = mById(a.mid);
+    if (a.datum !== lastDat) {
+      lastDat = a.datum;
+      var p=a.datum.split('-');
+      var dObj=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
+      rows += '<tr class="date-row"><td colspan="7">'+
+        WT[dObj.getDay()]+', '+p[2]+'.'+p[1]+'.'+p[0]+'</td></tr>';
+    }
+    var stimme = m ? m.stimme : '';
+    var sBadge = {S:'bs',A:'ba',T:'bb',B:'bt'}[stimme]||'bt';
+    var stBadge = a.status==='genehmigt'
+      ? '<span class="badge bg">&#10003; Genehmigt</span>'
+      : '<span class="badge bb">&#8987; Beantragt</span>';
+    var dp=a.datum.split('-');
+    var dO=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));
+    var umfStr = a.umfang==='sammlung'
+      ? 'Sammelindi ×'+(a.anzahl||2)
+      : (UL[a.umfang]||'Ganzer Tag');
+
+    rows += '<tr>'+
+      '<td style="font-weight:500">'+(m?m.vorname+' '+m.nachname:'?')+'</td>'+
+      '<td><span class="badge '+sBadge+'">'+(VN[stimme]||stimme)+'</span></td>'+
+      '<td>'+fd(a.datum)+'</td>'+
+      '<td style="color:var(--txd)">'+WT[dO.getDay()]+'</td>'+
+      '<td style="color:var(--txm);font-size:12px">'+umfStr+'</td>'+
+      '<td>'+stBadge+'</td>'+
+      '<td style="font-size:12px;color:var(--txm)">'+(a.bemerkung||'–')+'</td>'+
+      '</tr>';
+  });
+  tb.innerHTML = rows;
+}
+
+function stat(label, val, col) {
+  return '<div class="stat">'+
+    '<div class="stat-label">'+label+'</div>'+
+    '<div class="stat-val" style="color:'+col+'">'+val+'</div></div>';
+}
+
+}
+
+function csvEx() {
+  var list = getFiltered();
+  if (!list.length) { alert('Keine Einträge für den Export.'); return; }
+  var wt2=['So','Mo','Di','Mi','Do','Fr','Sa'];
+  var rows = list.map(function(a){
+    var m=mById(a.mid);
+    var dp=a.datum.split('-');
+    var dO=new Date(parseInt(dp[0]),parseInt(dp[1])-1,parseInt(dp[2]));
+    var umfStr=a.umfang==='sammlung'?'Sammelindi x'+(a.anzahl||2):(UL[a.umfang]||'Ganzer Tag');
+    return [
+      m?m.nachname+', '+m.vorname:'?',
+      m?VN[m.stimme]||m.stimme:'',
+      fd(a.datum),
+      wt2[dO.getDay()],
+      umfStr,
+      a.status==='genehmigt'?'Genehmigt':'Beantragt',
+      a.bemerkung||''
+    ].map(function(v){return '"'+String(v).replace(/"/g,'""')+'"';}).join(';');
+  });
+  var bom = String.fromCharCode(0xFEFF);
+  var csv = bom+'Mitglied;Stimme;Datum;Wochentag;Umfang;Status;Bemerkung\r\n'+rows.join('\r\n');
+  var b = new Blob([csv],{type:'text/csv'});
+  var u = URL.createObjectURL(b);
+  var a = document.createElement('a');
+  a.href=u; a.download='Indi-Kalender-'+td()+'.csv'; a.click();
+  URL.revokeObjectURL(u);
+}
+
+// Auto-Login prüfen
+if (sessionStorage.getItem('buero_auth')==='1') {
+  document.getElementById('login-wrap').style.display='none';
+  document.getElementById('app').style.display='block';
+  laden();
+}
+</script>
+</body>
+</html>
