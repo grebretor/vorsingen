@@ -391,7 +391,7 @@
     </div>
     <div class="btn-row no-print">
       <button class="btn btn-ghost" onclick="showScreen('s-ergebnis')">← Zurück zur Auswertung</button>
-      <button class="btn btn-primary" onclick="window.print()">🖨️ Drucken</button>
+      <button class="btn btn-primary" onclick="druckeProtokoll()">🖨️ Drucken</button>
     </div>
   </div>
 
@@ -847,9 +847,22 @@ async function goMemberStart() {
   const sitzung = await checkActiveSitzung();
 
   if (!sitzung) {
+    // Gibt es eine kürzlich geschlossene Sitzung?
+    const { data: letzte } = await sb
+      .from('v_sitzungen').select('*').eq('status', 'geschlossen')
+      .order('erstellt_am', { ascending: false }).limit(1);
     const el = document.getElementById('startAlert');
-    el.className = 'alert alert-warn';
-    el.textContent = 'Keine aktive Abstimmung – bitte warte auf die Leitung.';
+    if (letzte?.[0]) {
+      el.className = 'alert alert-info';
+      el.innerHTML = `Keine laufende Abstimmung. &nbsp;
+        <button class="btn btn-outline btn-sm" style="margin-top:0.4rem"
+          onclick="zeigeMitgliedErgebnis('${letzte[0].id}')">
+          📋 Letztes Ergebnis anzeigen
+        </button>`;
+    } else {
+      el.className = 'alert alert-warn';
+      el.textContent = 'Keine aktive Abstimmung – bitte warte auf die Leitung.';
+    }
     el.style.display = 'block';
     return;
   }
@@ -865,6 +878,16 @@ async function goMemberStart() {
   currentSitzung = sitzung;
   await ladeMemberNamen();
   showScreen('s-member-name');
+}
+
+async function zeigeMitgliedErgebnis(sitzungId) {
+  const { data: sitzung } = await sb
+    .from('v_sitzungen').select('*').eq('id', sitzungId).single();
+  if (!sitzung) { alert('Sitzung nicht gefunden.'); return; }
+  currentSitzung = sitzung;
+  await ladeAnwesenheitFuerSitzung();
+  await ladeKandidatenFuerSitzung();
+  await zeigeErgebnis();
 }
 
 async function ladeMemberNamen() {
@@ -1015,8 +1038,28 @@ function selectMemberVote(kid, kat, btn) {
   btn.classList.add(`sel-${catKey[kat]}`);
 }
 
+let _isSubmitting = false;
+
 async function stimmeAbgeben() {
+  if (_isSubmitting) return;
   if (!confirm('Stimme jetzt abgeben? Das kann nicht rückgängig gemacht werden.')) return;
+
+  // Sofort sperren gegen Doppeltippen
+  _isSubmitting = true;
+  const btnAbgeben = document.querySelector('#s-member-vote .btn-primary');
+  if (btnAbgeben) { btnAbgeben.disabled = true; btnAbgeben.textContent = '⏳ Wird gespeichert…'; }
+
+  // Nochmals prüfen ob bereits abgestimmt (Race-Condition-Schutz)
+  const { data: check } = await sb
+    .from('v_hat_abgestimmt').select('id')
+    .eq('sitzung_id', currentSitzung.id)
+    .eq('mitglied_id', currentMitglied.id)
+    .limit(1);
+  if (check?.length) {
+    showScreen('s-member-warten');
+    abboniereSitzungsEnde();
+    return;
+  }
 
   // Stimmen anonym speichern (ohne mitglied_id, aber mit stimmgruppe für SG-Quoten)
   const stimmen = kandidaten.map(k => ({
@@ -1026,14 +1069,23 @@ async function stimmeAbgeben() {
     stimmgruppe: normStimme(currentMitglied.stimme)
   }));
   const { error: e1 } = await sb.from('v_stimmen').insert(stimmen);
-  if (e1) { alert('Fehler beim Speichern: ' + e1.message); return; }
+  if (e1) {
+    _isSubmitting = false;
+    if (btnAbgeben) { btnAbgeben.disabled = false; btnAbgeben.textContent = 'Stimme abgeben ✓'; }
+    alert('Fehler beim Speichern: ' + e1.message);
+    return;
+  }
 
   // Nur "wer hat abgestimmt" speichern
   const { error: e2 } = await sb.from('v_hat_abgestimmt').insert({
     sitzung_id:  currentSitzung.id,
     mitglied_id: currentMitglied.id
   });
-  if (e2) { alert('Fehler: ' + e2.message); return; }
+  if (e2) {
+    _isSubmitting = false;
+    alert('Fehler: ' + e2.message);
+    return;
+  }
 
   showScreen('s-member-warten');
   abboniereSitzungsEnde();
@@ -1245,6 +1297,50 @@ function exportCSV() {
   a.href = url; a.download = 'vorsingen_ergebnis.csv'; a.click();
   URL.revokeObjectURL(url);
 }
+function druckeProtokoll() {
+  const meta    = document.getElementById('protokollMeta').innerHTML;
+  const eintr   = document.getElementById('protokollEintraege').innerHTML;
+  const signoff = document.getElementById('protokollSignoff').innerHTML;
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html lang="de"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Protokoll – RIAS Kammerchor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+      body { font-family:'Source Sans 3',sans-serif; color:#1b1f24; padding:2rem; max-width:720px; margin:0 auto; }
+      h1 { font-family:'Playfair Display',serif; font-size:1.3rem; margin-bottom:1rem; padding-bottom:0.5rem; border-bottom:2px solid #646870; }
+      .proto-entry { border:1px solid #dcdad6; border-radius:6px; margin-bottom:1rem; overflow:hidden; page-break-inside:avoid; }
+      .proto-entry-head { display:flex; align-items:center; gap:0.6rem; padding:0.75rem 1rem; background:#f8f7f4; flex-wrap:wrap; }
+      .proto-entry-name { font-family:'Playfair Display',serif; font-weight:700; font-size:1rem; }
+      .proto-pill { margin-left:auto; padding:0.2rem 0.6rem; border-radius:999px; font-size:0.74rem; font-weight:700; color:white; }
+      .proto-tables { display:grid; grid-template-columns:1fr 1fr; }
+      .proto-col + .proto-col { border-left:1px solid #dcdad6; }
+      .proto-col-head { padding:0.5rem 1rem 0.3rem; font-size:0.68rem; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:#767a82; }
+      .proto-row { display:flex; justify-content:space-between; padding:0.35rem 1rem 0.35rem 0.85rem; border-left:3px solid transparent; font-size:0.9rem; }
+      .proto-row .n { font-weight:600; }
+      .proto-row-sum { border-top:1px solid #dcdad6; font-weight:700; padding-top:0.45rem; padding-bottom:0.55rem; }
+      .proto-signoff { margin-top:1.5rem; padding-top:1rem; border-top:1px solid #dcdad6; display:flex; gap:2rem; }
+      .proto-signoff .line { flex:1; }
+      .proto-signoff .rule { border-bottom:1px solid #767a82; height:2.2rem; }
+      .proto-signoff .cap { margin-top:0.3rem; font-size:0.75rem; color:#767a82; }
+      .badge { display:inline-block; padding:0.15rem 0.5rem; border-radius:3px; font-size:0.72rem; font-weight:700; }
+      .badge-S { background:#fce8e8; color:#8b1c1c; }
+      .badge-A { background:#e8f2ec; color:#1a5230; }
+      .badge-T { background:#e8eaf4; color:#2a3480; }
+      .badge-B { background:#f5efe2; color:#6b4010; }
+      @media print { @page { margin:1.5cm; } }
+    </style>
+  </head><body>
+    <h1>Protokoll der Abstimmungsergebnisse</h1>
+    <div style="font-size:0.85rem;color:#767a82;margin-bottom:1.5rem">${meta}</div>
+    ${eintr}
+    ${signoff}
+    <script>window.onload = function(){ window.print(); }<\/script>
+  </body></html>`);
+  w.document.close();
+}
+
 function zeigeProtokoll() {
   if (!window._letzteErgebnisse) { alert('Bitte zuerst die Auswertung anzeigen.'); return; }
   const datumTxt = currentSitzung?.datum
