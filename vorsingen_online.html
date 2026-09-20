@@ -1055,8 +1055,9 @@ async function zeigeErgebnis() {
     const nSG = sgM.length;
 
     const stimmenFuerK = (stimmenData || []).filter(s => s.kandidat_id === k.id && normStimme(s.stimmgruppe) === k.stimmgruppe);
-    const sgV = stimmenFuerK.filter(s => s.kategorie === 'Vakanz').length;
-    const sgG = stimmenFuerK.filter(s => s.kategorie === 'Gast').length;
+    const sgV    = stimmenFuerK.filter(s => s.kategorie === 'Vakanz').length;
+    const sgG    = stimmenFuerK.filter(s => s.kategorie === 'Gast').length;
+    const sgNein = stimmenFuerK.filter(s => s.kategorie === 'Nein').length;
 
     const effGast = r.vV + r.vG;
     const sgEffG  = sgV + sgG;
@@ -1078,7 +1079,7 @@ async function zeigeErgebnis() {
       kandidat: k, ergebnis, effFuerRegel4,
       roh: r, nGesamt, nSG,
       eff: { gast: effGast },
-      sg:  { vakanz: sgV, gast: sgEffG },
+      sg:  { vakanz: sgV, gastRoh: sgG, gast: sgEffG, nein: sgNein },
     };
   }));
 
@@ -1222,6 +1223,7 @@ function generiereText(e) {
   if (ergebnis === 'Nein') {
     return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) stimmten ` +
       `insgesamt ${r.vV}× Vakanz, ${r.vG}× Gast und ${r.vN}× Nein. ` +
+      `Davon aus dem ${k.stimmgruppe}: ${sg.vakanz}× Vakanz, ${sg.gastRoh}× Gast, ${sg.nein}× Nein. ` +
       `Auch unter Berücksichtigung der Stimmenkaskade (Regel\u00a06) wurde für keine ` +
       `Kategorie eine der erforderlichen Mehrheiten erreicht. <strong>Empfehlung: Abgelehnt.</strong>`;
   }
@@ -1241,6 +1243,7 @@ function generiereText(e) {
     : '';
 
   return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) entfielen ${effN} Stimmen auf ${katL}. ` +
+    `Davon aus dem ${k.stimmgruppe}: ${sg.vakanz}× Vakanz, ${sg.gastRoh}× Gast, ${sg.nein}× Nein. ` +
     einl + wegT + r4 +
     ` <strong>Empfehlung: ${e.regel4Zurueck ? ergebnis+' – zurückgestellt' : ergebnis}.</strong>`;
 }
