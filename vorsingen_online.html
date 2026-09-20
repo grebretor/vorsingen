@@ -150,13 +150,16 @@
     /* ── ABSTIMMUNGSFORMULAR (Mitglied) ──────────────────────────────── */
     .vote-card { border: 1.5px solid var(--border); border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
     .vote-card-name { padding: 0.6rem 1rem; font-weight: 600; font-size: 0.92rem; background: #f8f7f4; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0.5rem; }
-    .vote-btn-group { display: grid; grid-template-columns: repeat(4, 1fr); }
-    .vote-btn { padding: 0.8rem 0.4rem; text-align: center; font-size: 0.88rem; font-family: 'Source Sans 3', sans-serif; font-weight: 600; cursor: pointer; border: none; border-right: 1px solid var(--border); background: white; color: var(--ink); transition: background 0.12s, color 0.12s; }
+    .vote-btn-group { display: grid; grid-template-columns: repeat(3, 1fr); }
+    .vote-btn { padding: 0.8rem 0.4rem; text-align: center; font-size: 0.88rem; font-family: 'Source Sans 3', sans-serif; font-weight: 600; cursor: pointer; border: none; border-right: 1px solid var(--border); transition: background 0.12s, color 0.12s; }
     .vote-btn:last-child { border-right: none; }
-    .vote-btn:hover { background: #eeedf0; }
+    /* Vorkolorierung (schwach) */
+    .vote-btn.vote-V { background: #eaf4ee; color: #2a6e3f; }
+    .vote-btn.vote-G { background: #fef9e6; color: #a07010; }
+    .vote-btn.vote-N { background: #fdecea; color: #9c2020; }
+    /* Vollton bei Auswahl */
     .vote-btn.sel-V { background: #2a6e3f; color: white; }
     .vote-btn.sel-G { background: #b8860b; color: white; }
-    .vote-btn.sel-S { background: #7c5a10; color: white; }
     .vote-btn.sel-N { background: #9c2020; color: white; }
 
     /* ── MONITOR (Fortschrittsanzeige) ───────────────────────────────── */
@@ -181,26 +184,6 @@
     .warten-wrap h2 { font-family: 'Playfair Display', serif; font-size: 1.3rem; color: var(--blue); margin-bottom: 0.5rem; }
     .warten-wrap p { font-size: 0.9rem; color: var(--muted); }
 
-    /* ── PROTOKOLL (absolute Stimmzahlen, für die Ablage) ─────────────── */
-    .proto-entry { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem; overflow: hidden; page-break-inside: avoid; }
-    .proto-entry-head { display: flex; align-items: center; gap: 0.6rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); background: #f8f7f4; flex-wrap: wrap; }
-    .proto-entry-name { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 1.02rem; }
-    .proto-pill { margin-left: auto; display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.74rem; font-weight: 700; color: white; }
-    .proto-tables { display: grid; grid-template-columns: 1fr 1fr; }
-    .proto-tables .proto-col + .proto-col { border-left: 1px solid var(--border); }
-    .proto-col-head { padding: 0.5rem 1rem 0.3rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-    .proto-row { display: flex; align-items: baseline; justify-content: space-between; padding: 0.35rem 1rem 0.35rem 0.85rem; border-left: 3px solid transparent; font-size: 0.9rem; }
-    .proto-row .n { font-variant-numeric: tabular-nums; font-weight: 600; }
-    .proto-row-sum { border-top: 1px solid var(--border); margin-top: 0.1rem; padding-top: 0.45rem; padding-bottom: 0.55rem; font-weight: 700; }
-    .proto-signoff { margin-top: 1.5rem; padding-top: 1.1rem; border-top: 1px solid var(--border); display: flex; gap: 2rem; flex-wrap: wrap; }
-    .proto-signoff .line { flex: 1 1 200px; }
-    .proto-signoff .rule { border-bottom: 1px solid var(--muted); height: 2.2rem; }
-    .proto-signoff .cap { margin-top: 0.3rem; font-size: 0.75rem; color: var(--muted); }
-    @media (max-width: 560px) {
-      .proto-tables { grid-template-columns: 1fr; }
-      .proto-tables .proto-col + .proto-col { border-left: none; border-top: 1px solid var(--border); }
-    }
-
     /* ── MOBILE HOCHFORMAT ───────────────────────────────────────────── */
     @media (max-width: 480px) and (orientation: portrait) {
       header { padding: 0.8rem 1rem; }
@@ -211,8 +194,9 @@
       .form-group.wide, .form-group { flex: unset; width: 100%; }
       .form-row > div:last-child, .form-row .btn { width: 100%; }
       .check-grid { grid-template-columns: repeat(2, 1fr); }
-      .vote-btn-group { grid-template-columns: repeat(2, 1fr); }
-      .vote-btn { padding: 0.85rem 0.3rem; border-bottom: 1px solid var(--border); }
+      .vote-btn-group { grid-template-columns: 1fr; }
+      .vote-btn { padding: 1rem; font-size: 0.95rem; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.4); }
+      .vote-btn:last-child { border-bottom: none; }
       .btn-row { flex-wrap: wrap; }
       .btn-row .btn, .btn-row .right .btn { width: 100%; }
       input[type="text"], input[type="password"], select { font-size: 1rem; padding: 0.75rem; }
@@ -235,7 +219,6 @@
     <span>Vorsingen · Online-Abstimmung</span>
   </div>
   <div class="role-badge" id="roleBadge"></div>
-  <button id="btnDirektlinks" class="btn btn-outline btn-sm" style="display:none;margin-left:0.5rem" onclick="openDirektlinks()">🔗 Direktlinks</button>
 </header>
 
 <div class="container">
@@ -305,6 +288,13 @@
         </div>
         <div><button class="btn btn-primary" onclick="addKandidat()">+</button></div>
       </div>
+      <div class="form-group">
+        <label>PIN-Pflicht</label>
+        <select id="vsPinPflicht">
+          <option value="true">Mit persönlicher PIN (empfohlen)</option>
+          <option value="false">Ohne PIN</option>
+        </select>
+      </div>
       <div id="kandidatenListe"></div>
     </div>
     <div class="btn-row">
@@ -364,24 +354,9 @@
     <div class="btn-row no-print">
       <button class="btn btn-ghost" onclick="showScreen('s-start'); resetAll()">⌂ Startseite</button>
       <div class="right">
-        <button class="btn btn-outline" id="btnProtokoll" onclick="zeigeProtokoll()" style="display:none">📋 Protokoll</button>
         <button class="btn btn-outline" id="btnCsvExport" onclick="exportCSV()" style="display:none">📥 CSV</button>
         <button class="btn btn-primary" onclick="window.print()">🖨️ Drucken</button>
       </div>
-    </div>
-  </div>
-
-  <!-- ══ ADMIN: PROTOKOLL (absolute Stimmzahlen, für die Ablage) ═══════════ -->
-  <div class="screen" id="s-protokoll">
-    <div class="card" id="protokollCard">
-      <div class="card-title">Protokoll der Abstimmungsergebnisse</div>
-      <div id="protokollMeta" style="font-size:0.85rem;color:var(--muted);margin-bottom:1rem;line-height:1.7"></div>
-      <div id="protokollEintraege"></div>
-      <div id="protokollSignoff"></div>
-    </div>
-    <div class="btn-row no-print">
-      <button class="btn btn-ghost" onclick="showScreen('s-ergebnis')">← Zurück zur Auswertung</button>
-      <button class="btn btn-primary" onclick="window.print()">🖨️ Drucken</button>
     </div>
   </div>
 
@@ -444,25 +419,6 @@
   </div>
 
 </div><!-- /container -->
-
-<!-- ══ MODAL: DIREKTLINKS (nur Leitung) ═════════════════════════════════ -->
-<div id="m-direktlinks" style="display:none;position:fixed;inset:0;background:rgba(26,23,20,.55);z-index:250;align-items:flex-start;justify-content:center">
-  <div style="background:var(--card);border-top:3px solid var(--gold);padding:20px;width:100%;max-width:760px;max-height:96vh;overflow-y:auto;border-radius:0 0 12px 12px;box-shadow:0 4px 24px rgba(0,0,0,.15)">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:1rem">
-      <div style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--blue)">🔗 Direktlinks für Mitglieder</div>
-      <button class="btn btn-ghost btn-sm" onclick="document.getElementById('m-direktlinks').style.display='none'">Schließen</button>
-    </div>
-    <div class="alert alert-info" style="font-size:0.82rem">
-      Nur die für diese Sitzung als anwesend markierten Mitglieder werden aufgeführt. Jeder Link identifiziert das Mitglied automatisch (Name + PIN) und führt bei offener Abstimmung direkt zur Stimmabgabe.
-      Zum Versand: Tabelle unten kopieren und in Mailmeteor bzw. eine Google-Sheets-Vorlage einfügen.
-    </div>
-    <div id="dlBody"></div>
-    <div class="btn-row no-print">
-      <span></span>
-      <button class="btn btn-primary" onclick="kopiereDirektlinks()">📋 Für Mailmeteor kopieren</button>
-    </div>
-  </div>
-</div>
 
 <script>
 // ════════════════════════════════════════════════════════════════════════
@@ -529,7 +485,6 @@ function resetAll() {
   if (realtimeSub) { clearInterval(realtimeSub); realtimeSub = null; }
   setRoleBadge('');
   sessionStorage.removeItem('rkc_admin');
-  document.getElementById('btnDirektlinks').style.display = 'none';
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -585,7 +540,6 @@ async function ladeSitzungsStatus() {
   const sitzung = await checkActiveSitzung();
   const infoEl  = document.getElementById('sitzungInfo');
   const btnEl   = document.getElementById('sitzungBtnRow');
-  const dlBtn   = document.getElementById('btnDirektlinks');
 
   if (!sitzung) {
     // Letzte abgeschlossene Sitzung anzeigen
@@ -596,17 +550,21 @@ async function ladeSitzungsStatus() {
       .order('erstellt_am', { ascending: false })
       .limit(1);
 
-    dlBtn.style.display = 'none';
     infoEl.innerHTML = `
       <div class="alert alert-info">Keine aktive Sitzung vorhanden.</div>
-      ${letzte?.[0] ? `<p style="font-size:0.85rem;color:var(--muted)">Letzte Sitzung: ${new Date(letzte[0].erstellt_am).toLocaleDateString('de-DE')}</p>` : ''}`;
+      ${letzte?.[0] ? `
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.5rem">
+          Letzte Sitzung: ${new Date(letzte[0].erstellt_am).toLocaleDateString('de-DE')} –
+          <strong>${letzte[0].kandidat_name || '(Vorsingen)'}</strong>
+        </p>` : ''}`;
     btnEl.innerHTML = `
-      ${letzte?.[0] ? `<button class="btn btn-outline" onclick="ladeLetztesErgebnis('${letzte[0].id}')">📋 Letzte Auswertung anzeigen</button>` : '<span></span>'}
-      <button class="btn btn-primary" onclick="neueSitzungAnlegen()">+ Neue Sitzung anlegen</button>`;
+      <div class="right">
+        ${letzte?.[0] ? `<button class="btn btn-outline" onclick="ladeLetztesErgebnis('${letzte[0].id}')">📋 Letzte Auswertung anzeigen</button>` : '<span></span>'}
+        <button class="btn btn-primary" onclick="neueSitzungAnlegen()">+ Neue Sitzung anlegen</button>
+      </div>`;
   } else if (sitzung.status === 'vorbereitung') {
     currentSitzung = sitzung;
     await ladeKandidatenFuerSitzung();
-    dlBtn.style.display = 'none';
     infoEl.innerHTML = `
       <div class="alert alert-warn">Sitzung in Vorbereitung – noch nicht geöffnet.</div>
       <p style="font-size:0.85rem;color:var(--muted)">Erstellt: ${new Date(sitzung.erstellt_am).toLocaleString('de-DE')}</p>`;
@@ -620,7 +578,6 @@ async function ladeSitzungsStatus() {
     currentSitzung = sitzung;
     await ladeKandidatenFuerSitzung();
     await ladeAnwesenheitFuerSitzung();
-    dlBtn.style.display = 'inline-block';
     infoEl.innerHTML = `<div class="alert alert-ok">✓ Abstimmung ist geöffnet.</div>`;
     btnEl.innerHTML = `
       <span></span>
@@ -628,22 +585,8 @@ async function ladeSitzungsStatus() {
   }
 }
 
-async function ladeLetztesErgebnis(sitzungId) {
-  const { data: sitzung } = await sb
-    .from('v_sitzungen').select('*').eq('id', sitzungId).single();
-  if (!sitzung) { alert('Sitzung nicht gefunden.'); return; }
-  currentSitzung = sitzung;
-  await ladeKandidatenFuerSitzung();
-  await ladeAnwesenheitFuerSitzung();
-  await zeigeErgebnis();
-}
-
 async function neueSitzungAnlegen() {
-  const pinErforderlich = confirm(
-    'Soll bei dieser Abstimmung eine persönliche PIN erforderlich sein?\n\n' +
-    '✓ OK  →  Mit PIN (empfohlen)\n' +
-    '✗ Abbrechen  →  Ohne PIN'
-  );
+  const pinErforderlich = document.getElementById('vsPinPflicht').value === 'true';
 
   const { data, error } = await sb
     .from('v_sitzungen')
@@ -799,7 +742,6 @@ async function sitzungSpeichernUndOeffnen() {
   currentSitzung.status = 'offen';
 
   await ladeAnwesenheitFuerSitzung();
-  document.getElementById('btnDirektlinks').style.display = 'inline-block';
   showScreen('s-admin-monitor');
   starteMonitor();
 }
@@ -844,80 +786,22 @@ async function abstimmungSchliessen() {
   if (realtimeSub) { clearInterval(realtimeSub); realtimeSub = null; }
   await sb.from('v_sitzungen').update({ status: 'geschlossen' }).eq('id', currentSitzung.id);
   currentSitzung.status = 'geschlossen';
-  document.getElementById('btnDirektlinks').style.display = 'none';
   await zeigeErgebnis();
+  setTimeout(() => {
+    alert('Tipp: Bitte jetzt das Ergebnis drucken (🖨️) oder als CSV exportieren (📥), ' +
+          'bevor Sie die Seite verlassen. Das Ergebnis kann jederzeit über ' +
+          '"Letzte Auswertung anzeigen" in der Sitzungsverwaltung erneut abgerufen werden.');
+  }, 500);
 }
 
-// ════════════════════════════════════════════════════════════════════════
-// ADMIN – DIREKTLINKS FÜR MITGLIEDER (zum Kopieren nach Mailmeteor etc.)
-// ════════════════════════════════════════════════════════════════════════
-function dlEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-async function openDirektlinks() {
-  if (!anwesendeListe.length) { alert('Keine Anwesenheitsliste für diese Sitzung vorhanden.'); return; }
-
-  const { data, error } = await sb.from('mitglieder')
-    .select('id, vorname, nachname, email, pin')
-    .in('id', anwesendeListe.map(m => m.id));
-  if (error) { alert('Fehler: ' + error.message); return; }
-
-  const base = location.origin + location.pathname;
-  const rows = (data || []).slice().sort((a, b) => a.nachname.localeCompare(b.nachname, 'de'));
-  const ok = rows.filter(m => m.pin && m.email);
-  const fehlend = rows.filter(m => !m.pin || !m.email);
-
-  const daten = ok.map(m => ({
-    email: m.email, vorname: m.vorname, nachname: m.nachname,
-    link: `${base}?m=${encodeURIComponent(m.id)}&p=${encodeURIComponent(m.pin)}`
-  }));
-  window._direktlinksDaten = daten;
-
-  const tableRows = daten.map(d => `<tr>
-      <td>${dlEsc(d.nachname)}</td><td>${dlEsc(d.vorname)}</td><td>${dlEsc(d.email)}</td>
-      <td style="font-size:0.72rem;word-break:break-all;color:var(--muted)">${dlEsc(d.link)}</td>
-    </tr>`).join('');
-
-  const fehlendHtml = fehlend.length
-    ? `<div class="alert alert-warn" style="margin-top:1rem">Ohne Link, da PIN und/oder E-Mail fehlt: ${fehlend.map(m => dlEsc(m.vorname + ' ' + m.nachname)).join(', ')}</div>`
-    : '';
-
-  document.getElementById('dlBody').innerHTML = `
-    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem">
-      <thead><tr>
-        <th style="text-align:left;padding:0.5rem 0.6rem;border-bottom:2px solid var(--border);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Nachname</th>
-        <th style="text-align:left;padding:0.5rem 0.6rem;border-bottom:2px solid var(--border);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Vorname</th>
-        <th style="text-align:left;padding:0.5rem 0.6rem;border-bottom:2px solid var(--border);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">E-Mail</th>
-        <th style="text-align:left;padding:0.5rem 0.6rem;border-bottom:2px solid var(--border);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--muted)">Link</th>
-      </tr></thead>
-      <tbody>${tableRows || '<tr><td colspan="4" style="padding:0.75rem;color:var(--muted)">Keine Mitglieder mit PIN und E-Mail vorhanden.</td></tr>'}</tbody>
-    </table></div>${fehlendHtml}`;
-
-  document.getElementById('m-direktlinks').style.display = 'flex';
-}
-
-function kopiereDirektlinks() {
-  const d = window._direktlinksDaten || [];
-  if (!d.length) { alert('Keine Mitglieder mit PIN und E-Mail vorhanden.'); return; }
-  const header = ['E-Mail', 'Vorname', 'Nachname', 'Link'].join('\t');
-  const rows = d.map(x => [x.email, x.vorname, x.nachname, x.link].join('\t'));
-  const text = [header, ...rows].join('\n');
-  const fertig = () => alert('Kopiert (' + d.length + ' Mitglieder) – bereit zum Einfügen in Mailmeteor / Google Sheets.');
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(fertig).catch(() => dlFallbackKopieren(text, fertig));
-  } else {
-    dlFallbackKopieren(text, fertig);
-  }
-}
-
-function dlFallbackKopieren(text, onOk) {
-  const ta = document.createElement('textarea');
-  ta.value = text;
-  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
-  document.body.appendChild(ta);
-  ta.select();
-  try { document.execCommand('copy'); onOk && onOk(); }
-  catch (e) { alert('Kopieren fehlgeschlagen – bitte manuell markieren und kopieren.'); }
-  document.body.removeChild(ta);
+async function ladeLetztesErgebnis(sitzungId) {
+  const { data: sitzung } = await sb
+    .from('v_sitzungen').select('*').eq('id', sitzungId).single();
+  if (!sitzung) { alert('Sitzung nicht gefunden.'); return; }
+  currentSitzung = sitzung;
+  await ladeAnwesenheitFuerSitzung();
+  await ladeKandidatenFuerSitzung();
+  await zeigeErgebnis();
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -932,7 +816,6 @@ async function goMemberStart() {
     el.className = 'alert alert-warn';
     el.textContent = 'Keine aktive Abstimmung – bitte warte auf die Leitung.';
     el.style.display = 'block';
-    showScreen('s-start');
     return;
   }
 
@@ -941,7 +824,6 @@ async function goMemberStart() {
     el.className = 'alert alert-warn';
     el.textContent = 'Die Abstimmung wurde noch nicht geöffnet – bitte warte.';
     el.style.display = 'block';
-    showScreen('s-start');
     return;
   }
 
@@ -966,6 +848,15 @@ async function ladeMemberNamen() {
     ).join('');
   sel.onchange = () => pruefeObAbgestimmt(sel.value);
   document.getElementById('btnZurAbstimmung').disabled = true;
+
+  // Ein-Klick: ID aus URL → Name auto-wählen und direkt prüfen
+  if (window._urlId) {
+    const member = anwesendeListe.find(m => m.id === window._urlId);
+    if (member) {
+      sel.value = window._urlId;
+      await pruefeObAbgestimmt(window._urlId);
+    }
+  }
 }
 
 async function pruefeObAbgestimmt(mid) {
@@ -996,9 +887,24 @@ async function pruefeObAbgestimmt(mid) {
   currentMitglied = anwesendeListe.find(m => m.id === mid);
 
   if (!currentSitzung.pin_erforderlich) {
-    // Ohne PIN direkt freischalten
     document.getElementById('pinWrap').style.display = 'none';
     document.getElementById('btnZurAbstimmung').disabled = false;
+    return;
+  }
+
+  // PIN aus URL? → unsichtbar prüfen, kein Feld zeigen
+  if (window._urlPin) {
+    if (!currentMitglied?.pin) {
+      document.getElementById('pinNichtGesetzt').style.display = 'block';
+      return;
+    }
+    if (window._urlPin === String(currentMitglied.pin)) {
+      document.getElementById('btnZurAbstimmung').disabled = false;
+      // Ein-Klick: direkt zur Abstimmung wenn ID auch aus URL kam
+      if (window._urlId) setTimeout(() => startMemberVote(), 300);
+    } else {
+      document.getElementById('pinFehler').style.display = 'block';
+    }
     return;
   }
 
@@ -1014,7 +920,7 @@ async function pruefeObAbgestimmt(mid) {
 }
 
 function pinOderWeiter() {
-  if (!currentSitzung.pin_erforderlich) {
+  if (!currentSitzung.pin_erforderlich || window._urlPin) {
     startMemberVote();
   } else {
     pruefePin();
@@ -1052,7 +958,7 @@ async function startMemberVote() {
       <div class="vote-btn-group">
         ${KATEGORIEN.map(kat => {
           const ck = catKey[kat];
-          return `<button class="vote-btn${kat === 'Nein' ? ' sel-N' : ''}"
+          return `<button class="vote-btn vote-${ck}${kat === 'Nein' ? ' sel-N' : ''}"
             onclick="selectMemberVote('${k.id}', '${kat}', this)"
             data-kid="${k.id}">${kat}</button>`;
         }).join('')}
@@ -1066,7 +972,11 @@ function selectMemberVote(kid, kat, btn) {
   memberVotes[kid] = kat;
   const catKey = { 'Vakanz':'V','Gast':'G','Nein':'N' };
   const group  = btn.closest('.vote-btn-group');
-  group.querySelectorAll('.vote-btn').forEach(b => { b.className = 'vote-btn'; });
+  group.querySelectorAll('.vote-btn').forEach(b => {
+    const bk = catKey[b.dataset.kid ? b.textContent.trim() : 'Nein'];
+    // Vorkolorierung beibehalten, nur sel-Klasse entfernen
+    b.className = `vote-btn vote-${catKey[b.textContent.trim()] || 'N'}`;
+  });
   btn.classList.add(`sel-${catKey[kat]}`);
 }
 
@@ -1111,55 +1021,6 @@ function abboniereSitzungsEnde() {
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// DIREKTLINK: ?m=<mitglied_id>&p=<pin> identifiziert automatisch und
-// springt bei offener Abstimmung direkt zur Stimmabgabe.
-// ════════════════════════════════════════════════════════════════════════
-async function versucheDirektlink() {
-  const params = new URLSearchParams(window.location.search);
-  const mid = params.get('m');
-  const pin = params.get('p');
-  if (!mid || !pin) return false;
-
-  const sitzung = await checkActiveSitzung();
-  if (!sitzung || sitzung.status !== 'offen') return false;
-  currentSitzung = sitzung;
-
-  await ladeMemberNamen();
-  const m = anwesendeListe.find(x => x.id === mid);
-  if (!m) return false;
-  if (currentSitzung.pin_erforderlich && String(m.pin) !== String(pin)) return false;
-
-  setRoleBadge('Mitglied');
-  const sel = document.getElementById('memberSelect');
-  if (sel) sel.value = m.id;
-
-  const { data: hat } = await sb
-    .from('v_hat_abgestimmt')
-    .select('id')
-    .eq('sitzung_id', currentSitzung.id)
-    .eq('mitglied_id', m.id)
-    .limit(1);
-  if (hat?.length) {
-    showScreen('s-member-name');
-    document.getElementById('bereitsAbgestimmt').style.display = 'block';
-    abboniereSitzungsEnde();
-    return true;
-  }
-
-  currentMitglied = m;
-  await startMemberVote();
-  return true;
-}
-
-window.addEventListener('DOMContentLoaded', async () => {
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('m')) {
-    const ok = await versucheDirektlink();
-    if (!ok) goMemberStart();
-  }
-});
-
-// ════════════════════════════════════════════════════════════════════════
 // AUSWERTUNG (gemeinsam für Admin und Mitglied)
 // ════════════════════════════════════════════════════════════════════════
 async function zeigeErgebnis() {
@@ -1196,7 +1057,6 @@ async function zeigeErgebnis() {
     const stimmenFuerK = (stimmenData || []).filter(s => s.kandidat_id === k.id && normStimme(s.stimmgruppe) === k.stimmgruppe);
     const sgV = stimmenFuerK.filter(s => s.kategorie === 'Vakanz').length;
     const sgG = stimmenFuerK.filter(s => s.kategorie === 'Gast').length;
-    const sgN = stimmenFuerK.filter(s => s.kategorie === 'Nein').length;
 
     const effGast = r.vV + r.vG;
     const sgEffG  = sgV + sgG;
@@ -1213,11 +1073,10 @@ async function zeigeErgebnis() {
     else if (besteht(effGast, sgEffG)){ ergebnis = 'Gast';   effFuerRegel4 = effGast; }
     else                              { ergebnis = 'Nein';   effFuerRegel4 = 0;       }
 
-    const pct = (n, d) => d > 0 ? Math.round(n/d*100) + ' %' : '–';
+    const pct = (n, d) => d > 0 ? Math.round(n/d*100) + '\u202f%' : '–';
     return {
       kandidat: k, ergebnis, effFuerRegel4,
       roh: r, nGesamt, nSG,
-      sgRoh: { vV: sgV, vG: sgG, vN: sgN },
       eff: { gast: effGast },
       sg:  { vakanz: sgV, gast: sgEffG },
     };
@@ -1228,13 +1087,8 @@ async function zeigeErgebnis() {
   showScreen('s-ergebnis');
 }
 
-// Regel 4 (Konkurrenzregel): gilt bewusst NUR für die Kategorie "Vakanz",
-// weil es dort in der Regel nur ein bis zwei tatsächlich freie Stellen
-// gleichzeitig gibt. Bei "Gast" (freie Mitarbeit) gibt es keine solche
-// Stellenbegrenzung, daher konkurrieren dort mehrere Kandidaten
-// derselben Stimmgruppe nicht gegeneinander.
 function anwendeRegel4(ergebnisse) {
-  ['Vakanz'].forEach(kat => {
+  ['Vakanz', 'Gast'].forEach(kat => {
     STIMMGRUPPEN.forEach(sg => {
       const gruppe = ergebnisse.filter(e => e.ergebnis === kat && e.kandidat.stimmgruppe === sg);
       if (gruppe.length > 1) {
@@ -1249,31 +1103,29 @@ function anwendeRegel4(ergebnisse) {
 const ESTIL = { 'Vakanz':['#2a6e3f','★'],'Gast':['#b8860b','✓'],'Nein':['#9c2020','✗'] };
 function ergebnisTag(e) {
   const [bg, icon] = ESTIL[e.ergebnis];
-  const label = e.regel4Zurueck ? `${e.ergebnis} (Regel 4)` : e.ergebnis;
+  const label = e.regel4Zurueck ? `${e.ergebnis} (Regel\u00a04)` : e.ergebnis;
   return `<span style="background:${e.regel4Zurueck?'#888':bg};color:white;padding:0.2rem 0.55rem;border-radius:3px;font-size:0.78rem;font-weight:700">${icon} ${label}</span>`;
 }
 
 function renderErgebnis(ergebnisse, total) {
   const istAdmin = sessionStorage.getItem('rkc_admin') === '1';
 
-  // CSV- und Protokoll-Button nur für Leitung einblenden (Regel 5)
+  // CSV-Button nur für Leitung einblenden
   const csvBtn = document.getElementById('btnCsvExport');
   if (csvBtn) csvBtn.style.display = istAdmin ? 'inline-block' : 'none';
-  const protokollBtn = document.getElementById('btnProtokoll');
-  if (protokollBtn) protokollBtn.style.display = istAdmin ? 'inline-block' : 'none';
 
   document.getElementById('ergebnisMeta').innerHTML =
     `Anwesende Mitglieder: <strong>${total}</strong> &nbsp;·&nbsp; Kandidaten: <strong>${kandidaten.length}</strong>` +
-    (istAdmin ? `<br><small>Rohstimmen (Summe je Zeile = ${total}). Prozente (Ges. / SG) werden für Vakanz und Gast angezeigt, auch bei abgelehnten Kandidaten.
-     Dem Büro bzw. dem Chordirektor werden nur Empfehlungen mitgeteilt (Regel 5).</small>` : '');
+    (istAdmin ? `<br><small>Rohstimmen (Summe je Zeile = ${total}). Prozente in der entscheidenden Spalte (Ges. / SG). 
+     Zur Leitung werden nur Empfehlungen mitgeteilt (Regel\u00a05).</small>` : '');
 
   if (istAdmin) {
     const rows = ergebnisse.map(e => {
       const { roh: r, nGesamt, nSG, ergebnis } = e;
       const k = e.kandidat;
       const pct = (n, sg) => `<div style="font-size:0.7rem;color:var(--muted)">${nGesamt>0?Math.round(n/nGesamt*100)+'%':'–'} / ${nSG>0?Math.round(sg/nSG*100)+'%':'–'}</div>`;
-      const pV = pct(r.vV,       e.sg.vakanz);
-      const pG = pct(e.eff.gast, e.sg.gast);
+      const pV = ergebnis==='Vakanz'      ? pct(r.vV,        e.sg.vakanz) : '';
+      const pG = ergebnis==='Gast'        ? pct(e.eff.gast,  e.sg.gast)   : '';
         return `<tr>
         <td><strong>${k.name}</strong></td>
         <td>${badge(k.stimmgruppe)}</td>
@@ -1347,96 +1199,13 @@ function exportCSV() {
       empf, `"${text.replace(/"/g, '""')}"`].join(';');
   });
 
-  const csv  = '﻿' + [header.join(';'), ...rows].join('\r\n');
+  const csv  = '\uFEFF' + [header.join(';'), ...rows].join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url; a.download = 'vorsingen_ergebnis.csv'; a.click();
   URL.revokeObjectURL(url);
 }
-
-// ════════════════════════════════════════════════════════════════════════
-// PROTOKOLL – absolute Stimmzahlen je Kandidat (Chor gesamt + Stimmgruppe),
-// für die offizielle Ablage. Nur für die Leitung erreichbar (Regel 5).
-// ════════════════════════════════════════════════════════════════════════
-function zeigeProtokoll() {
-  if (!window._letzteErgebnisse) { alert('Bitte zuerst die Auswertung anzeigen.'); return; }
-  const datumTxt = currentSitzung?.datum
-    ? new Date(currentSitzung.datum).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
-    : new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
-  renderProtokoll(window._letzteErgebnisse, anwesendeListe.length, `Vorsingen vom ${datumTxt}`);
-  showScreen('s-protokoll');
-}
-
-function renderProtokoll(ergebnisse, nGesamt, datumLabel) {
-  const sgVorhanden = [...new Set(ergebnisse.map(e => e.kandidat.stimmgruppe))];
-  const sgOrder = STIMMGRUPPEN.filter(sg => sgVorhanden.includes(sg));
-  const sgText = sgOrder.map(sg => {
-    const eintrag = ergebnisse.find(e => e.kandidat.stimmgruppe === sg);
-    return `${sg[0]} ${eintrag.nSG}`;
-  }).join(' · ');
-
-  document.getElementById('protokollMeta').innerHTML = `
-    <div style="margin-bottom:0.9rem">${datumLabel} · absolute Stimmzahlen je Kandidat, Chor gesamt und Stimmgruppe — für die Ablage</div>
-    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.25rem">
-      <div style="flex:1 1 140px;background:var(--paper);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.85rem">
-        <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:0.2rem">Anwesende gesamt</div>
-        <div style="font-family:'Playfair Display',serif;font-size:1.15rem">${nGesamt}</div>
-      </div>
-      <div style="flex:1 1 140px;background:var(--paper);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.85rem">
-        <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:0.2rem">Kandidaten</div>
-        <div style="font-family:'Playfair Display',serif;font-size:1.15rem">${ergebnisse.length}</div>
-      </div>
-      <div style="flex:1 1 140px;background:var(--paper);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.85rem">
-        <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:var(--muted);margin-bottom:0.2rem">Anwesende je Stimmgruppe</div>
-        <div style="font-family:'Source Sans 3',sans-serif;font-weight:600;font-size:0.95rem;font-variant-numeric:tabular-nums">${sgText}</div>
-      </div>
-    </div>`;
-
-  const catColor = { 'Vakanz': '#2a6e3f', 'Gast': '#b8860b', 'Nein': '#9c2020' };
-  const catIcon  = { 'Vakanz': '★', 'Gast': '✓', 'Nein': '✗' };
-  const zeile = (kategorie, anzahl) =>
-    `<div class="proto-row" style="border-left-color:${catColor[kategorie]}"><span style="color:var(--muted)">${kategorie}</span><span class="n">${anzahl}</span></div>`;
-
-  document.getElementById('protokollEintraege').innerHTML = ergebnisse.map(e => {
-    const k = e.kandidat;
-    const pillLabel = e.regel4Zurueck ? `${e.ergebnis} — zurückgestellt (Regel 4)` : e.ergebnis;
-    const pillBg    = e.regel4Zurueck ? 'var(--muted)' : catColor[e.ergebnis];
-    const summeGes  = e.roh.vV + e.roh.vG + e.roh.vN;
-    const summeSg   = e.sgRoh.vV + e.sgRoh.vG + e.sgRoh.vN;
-    return `
-      <div class="proto-entry">
-        <div class="proto-entry-head">
-          <span class="proto-entry-name">${k.name}</span>
-          ${badge(k.stimmgruppe)}
-          <span class="proto-pill" style="background:${pillBg}">${catIcon[e.ergebnis]} ${pillLabel}</span>
-        </div>
-        <div class="proto-tables">
-          <div class="proto-col">
-            <div class="proto-col-head">Chor gesamt (${e.nGesamt})</div>
-            ${zeile('Vakanz', e.roh.vV)}
-            ${zeile('Gast',   e.roh.vG)}
-            ${zeile('Nein',   e.roh.vN)}
-            <div class="proto-row proto-row-sum"><span>Summe</span><span class="n">${summeGes}</span></div>
-          </div>
-          <div class="proto-col">
-            <div class="proto-col-head">${k.stimmgruppe} (${e.nSG})</div>
-            ${zeile('Vakanz', e.sgRoh.vV)}
-            ${zeile('Gast',   e.sgRoh.vG)}
-            ${zeile('Nein',   e.sgRoh.vN)}
-            <div class="proto-row proto-row-sum"><span>Summe</span><span class="n">${summeSg}</span></div>
-          </div>
-        </div>
-      </div>`;
-  }).join('');
-
-  document.getElementById('protokollSignoff').innerHTML = `
-    <div class="proto-signoff">
-      <div class="line"><div class="rule"></div><div class="cap">Ort, Datum</div></div>
-      <div class="line"><div class="rule"></div><div class="cap">Unterschrift Chorvorstand</div></div>
-    </div>`;
-}
-
 function bestehtWeg(eff, sgEff, nGesamt, nSG) {
   if (nGesamt === 0) return null;
   const rG = eff/nGesamt, rSG = nSG > 0 ? sgEff/nSG : 0;
@@ -1445,71 +1214,48 @@ function bestehtWeg(eff, sgEff, nGesamt, nSG) {
   return null;
 }
 
-// Beschreibt für eine einzelne Kategorie (Vakanz oder Gast), wie nah man an
-// Weg A bzw. Weg B war, und benennt gezielt, ob die Gesamt- oder die
-// Stimmgruppen-Schwelle (oder beide) nicht erreicht wurde. Wird nur für
-// abgelehnte Kandidaten gebraucht, damit auch bei "Nein" nachvollziehbar
-// bleibt, woran es lag (z. B. Gesamt-Mehrheit klar erreicht, aber die eigene
-// Stimmgruppe knapp unter dem Quorum geblieben).
-function bewerteKategorie(eff, sgEff, nGesamt, nSG, label) {
-  const rG  = nGesamt > 0 ? eff / nGesamt : 0;
-  const rSG = nSG > 0 ? sgEff / nSG : 0;
-  const pG  = nGesamt > 0 ? Math.round(rG * 100) + ' %' : '–';
-  const pSG = nSG > 0 ? Math.round(rSG * 100) + ' %' : '–';
-
-  // Nur tatsächlich verfehlte Schwellen betrachten (diff > 0) – eine bereits
-  // erfüllte Teilbedingung (z. B. die SG-Schwelle bei knapp verfehlter
-  // Gesamt-Schwelle) soll nicht fälschlich als "knapper Fehlschlag" auftauchen.
-  const schwellen = [
-    { weg: 'A', teil: 'Gesamt-Schwelle',        ziel: '≥ 67 % ges.', diff: Math.max(0, Math.ceil((2/3  - rG)  * 100 - 1e-9)) },
-    { weg: 'A', teil: 'Stimmgruppen-Schwelle', ziel: '≥ 51 % SG',  diff: Math.max(0, Math.ceil((0.51 - rSG) * 100 - 1e-9)) },
-    { weg: 'B', teil: 'Gesamt-Schwelle',        ziel: '> 50 % ges.',  diff: Math.max(0, Math.ceil((0.5  - rG)  * 100 - 1e-9)) },
-    { weg: 'B', teil: 'Stimmgruppen-Schwelle', ziel: '≥ 75 % SG',  diff: Math.max(0, Math.ceil((0.75 - rSG) * 100 - 1e-9)) },
-  ].filter(s => s.diff > 0);
-
-  const pp = n => `${n} Prozentpunkt${n === 1 ? '' : 'e'}`;
-  const naechste = schwellen.length ? schwellen.reduce((a, b) => (b.diff < a.diff ? b : a)) : null;
-
-  const hinweis = naechste && naechste.diff <= 5
-    ? `am nächsten kam die ${naechste.teil} von Weg ${naechste.weg} (${naechste.ziel}) – nur ${pp(naechste.diff)} entfernt`
-    : `lag deutlich unter beiden möglichen Wegen (Weg A: ≥ 67 % ges. & ≥ 51 % SG; Weg B: > 50 % ges. & ≥ 75 % SG)`;
-
-  return `${label}: ${pG} gesamt / ${pSG} SG – ${hinweis}`;
-}
-
 function generiereText(e) {
   const { roh: r, eff, sg, nGesamt, nSG, ergebnis, kandidat: k } = e;
-  const p = (n, d) => d > 0 ? Math.round(n/d*100)+' %' : '–';
+  const p = (n, d) => d > 0 ? Math.round(n/d*100)+'\u202f%' : '–';
   const sg_label = `${nSG} aus dem ${k.stimmgruppe}`;
 
   if (ergebnis === 'Nein') {
-    const zeileVakanz = bewerteKategorie(r.vV, sg.vakanz, nGesamt, nSG, 'Vakanz');
-    const zeileGast   = bewerteKategorie(eff.gast, sg.gast, nGesamt, nSG, 'Gast (kaskadiert aus Vakanz + Gast)');
     return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) stimmten ` +
-      `${r.vV}× Vakanz, ${r.vG}× Gast und ${r.vN}× Nein. ` +
-      `${zeileVakanz}. ${zeileGast}. ` +
-      `<strong>Empfehlung: Abgelehnt.</strong>`;
+      `insgesamt ${r.vV}× Vakanz, ${r.vG}× Gast und ${r.vN}× Nein. ` +
+      `Auch unter Berücksichtigung der Stimmenkaskade (Regel\u00a06) wurde für keine ` +
+      `Kategorie eine der erforderlichen Mehrheiten erreicht. <strong>Empfehlung: Abgelehnt.</strong>`;
   }
   let einl = '';
   if (ergebnis === 'Gast')
-    einl = `Für eine Vakanz-Einstellung reichte es nicht aus (${p(r.vV,nGesamt)} ges. / ${p(sg.vakanz,nSG)} SG). `;
-
+    einl = `Für eine Vakanz-Einstellung reichte es nicht aus (${p(r.vV,nGesamt)}\u202fges. / ${p(sg.vakanz,nSG)}\u202fSG). `;
 
   const effN = ergebnis==='Vakanz' ? r.vV     : eff.gast;
   const sgE  = ergebnis==='Vakanz' ? sg.vakanz : sg.gast;
-  const katL  = ergebnis==='Vakanz' ? 'Vakanz' : 'Gast (Vakanz + Gast kaskadiert)';
+  const katL = ergebnis==='Vakanz' ? 'Vakanz' : 'Gast (Vakanz\u202f+\u202fGast kaskadiert)';
   const weg   = bestehtWeg(effN, sgE, nGesamt, nSG);
   const wegT  = weg==='A'
-    ? `Die 2/3-Mehrheit (${p(effN,nGesamt)} ges.) und das 51 %-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg A, Regel 2).`
-    : `Die einfache Mehrheit (${p(effN,nGesamt)} ges.) und das ¾-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg B, Regel 3).`;
+    ? `Die 2/3-Mehrheit (${p(effN,nGesamt)}\u202fges.) und das 51\u202f%-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg\u202fA, Regel\u202f2).`
+    : `Die einfache Mehrheit (${p(effN,nGesamt)}\u202fges.) und das ¾-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg\u202fB, Regel\u202f3).`;
   const r4 = e.regel4Zurueck
-    ? ` Ein anderer Kandidat derselben Stimmgruppe erreichte dieselbe Kategorie mit mehr Stimmen — ${k.name} wird zurückgestellt (Regel 4).`
+    ? ` Ein anderer Kandidat derselben Stimmgruppe erreichte dieselbe Kategorie mit mehr Stimmen — ${k.name} wird zurückgestellt (Regel\u00a04).`
     : '';
 
   return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) entfielen ${effN} Stimmen auf ${katL}. ` +
     einl + wegT + r4 +
     ` <strong>Empfehlung: ${e.regel4Zurueck ? ergebnis+' – zurückgestellt' : ergebnis}.</strong>`;
 }
+
+// ════════════════════════════════════════════════════════════════════════
+// START: URL-Parameter prüfen
+// ════════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.has('mitglied')) {
+    window._urlPin = params.get('pin') || null;
+    window._urlId  = params.get('id')  || null;
+    goMemberStart();
+  }
+});
 </script>
 </body>
 </html>
