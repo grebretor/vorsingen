@@ -259,7 +259,28 @@
           <h3>Mitglied</h3>
           <p>An der aktuellen Abstimmung teilnehmen</p>
         </div>
+        <div class="start-card" style="grid-column:1/-1" onclick="goErgebnisPublic()">
+          <div class="icon">📋</div>
+          <h3>Letztes Ergebnis</h3>
+          <p>Ergebnisse des letzten Vorsingens ansehen</p>
+        </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ══ DATENSCHUTZ-HINWEIS (vor öffentlichem Ergebnis) ════════════════ -->
+  <div class="screen" id="s-ergebnis-hinweis">
+    <div class="card">
+      <div class="card-title">Hinweis zur Vertraulichkeit</div>
+      <div class="alert alert-warn" style="line-height:1.7;font-size:0.93rem">
+        Du möchtest die Ergebnisse des letzten Vorsingens sehen?<br><br>
+        Bitte beachte, dass diese sensiblen Daten <strong>nur der internen Information
+        dienen und nicht weitergegeben werden dürfen</strong>.
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="showScreen('s-start')">← Zurück</button>
+      <button class="btn btn-primary" onclick="zeigErgebnisPublic()">Ich habe den Hinweis gelesen →</button>
     </div>
   </div>
 
@@ -538,6 +559,22 @@ async function checkActiveSitzung() {
 // ════════════════════════════════════════════════════════════════════════
 // ADMIN – Login
 // ════════════════════════════════════════════════════════════════════════
+function goErgebnisPublic() {
+  showScreen('s-ergebnis-hinweis');
+}
+
+async function zeigErgebnisPublic() {
+  const { data: letzte } = await sb
+    .from('v_sitzungen').select('*').eq('status', 'geschlossen')
+    .order('erstellt_am', { ascending: false }).limit(1);
+  if (!letzte?.[0]) {
+    alert('Es sind noch keine abgeschlossenen Abstimmungen vorhanden.');
+    showScreen('s-start');
+    return;
+  }
+  await zeigeMitgliedErgebnis(letzte[0].id);
+}
+
 function goAdminLogin() {
   if (sessionStorage.getItem('rkc_admin') === '1') {
     adminNachLogin();
