@@ -223,6 +223,8 @@
     }
 
     @media print {
+    @page { margin: 1.5cm; size: A4; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       header, .btn-row, .no-print { display: none !important; }
       .card { box-shadow: none; }
       body { background: white; }
@@ -1477,8 +1479,12 @@ function istIOS() {
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }
 function drucken(titel) {
-  if (istIOS() && navigator.share) {
-    navigator.share({ title: titel || document.title, url: window.location.href });
+  if (istIOS()) {
+    // iOS: window.print() versuchen, bei Bedarf Hinweis zeigen
+    try { window.print(); } catch(e) {}
+    // Hinweis kurz einblenden falls Nutzer nix sieht
+    const h = document.getElementById('ios-druck-hint');
+    if (h) { h.style.display='block'; setTimeout(()=>h.style.display='none', 8000); }
   } else {
     window.print();
   }
