@@ -45,21 +45,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Probezeit – RIAS Kammerchor Berlin</title>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
-// ── iOS-kompatibler Druckdialog ───────────────────────────────────────
-function istIOS() {
-  return /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-function drucken(titel) {
-  if (istIOS() && navigator.share) {
-    navigator.share({ title: titel || document.title, url: window.location.href });
-  } else {
-    window.print();
-  }
-}
-
-</script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --ink:    #1b1f24;
@@ -1189,6 +1175,20 @@ function exportCSV() {
   a.href = url; a.download = `probezeit_${d.name.replace(/\s+/g,'_')}.csv`; a.click();
   URL.revokeObjectURL(url);
 }
+
+// ── iOS-kompatibler Druckdialog ───────────────────────────────────────
+function istIOS() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function drucken(titel) {
+  if (istIOS() && navigator.share) {
+    navigator.share({ title: titel || document.title, url: window.location.href });
+  } else {
+    window.print();
+  }
+}
+
 </script>
 </body>
 </html>
