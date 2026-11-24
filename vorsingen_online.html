@@ -200,7 +200,12 @@
       .btn-row { flex-wrap: wrap; }
       .btn-row .btn, .btn-row .right .btn { width: 100%; }
       input[type="text"], input[type="password"], select { font-size: 1rem; padding: 0.75rem; }
+      #btnVersandKopieren, .mail-btns .btn { width: 100%; }
+      textarea { font-size: 1rem; }
     }
+    .mail-btns { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+    textarea { width: 100%; padding: 0.6rem 0.85rem; border: 1px solid var(--border); border-radius: 4px; font-family: 'Source Sans 3', sans-serif; font-size: 0.95rem; line-height: 1.5; color: var(--ink); background: white; resize: vertical; }
+    textarea:focus { outline: none; border-color: var(--blue); }
 
     /* ── PROTOKOLL ───────────────────────────────────────────────────── */
     .proto-entry { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem; overflow: hidden; page-break-inside: avoid; }
@@ -380,6 +385,47 @@
         <button class="btn btn-outline btn-sm" onclick="aktualisiereMonitor()">↻ Aktualisieren</button>
       </div>
     </div>
+    <!-- Direktversand der Abstimmungslinks -->
+    <div class="card">
+      <div class="card-title">✉️ Direktlinks versenden</div>
+      <div id="mailNichtEingerichtet" class="alert alert-warn" style="display:none">
+        Der Direktversand ist noch nicht eingerichtet (MAIL_SKRIPT_URL fehlt in der Konfiguration).
+        Bis dahin bitte die Versandliste kopieren.
+      </div>
+      <div id="mailBereich">
+        <div style="font-size:0.86rem;color:var(--muted);line-height:1.55;margin-bottom:0.85rem">
+          Schickt allen Anwesenden ihren persönlichen Abstimmungslink per E-Mail – nach der Vorlage unten.
+        </div>
+        <div class="mail-btns">
+          <button class="btn btn-primary" id="btnMailAlle" onclick="sendeMails(false)">✉️ Mails an alle Anwesenden senden</button>
+          <button class="btn btn-outline" id="btnMailOffene" onclick="sendeMails(true)">🔔 Erinnerung an noch Offene</button>
+          <button class="btn btn-ghost" onclick="toggleVorlage()">✏️ Vorlage bearbeiten</button>
+        </div>
+        <div id="vorlageEditor" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+          <div class="form-group" style="margin-bottom:0.75rem">
+            <label>Betreff</label>
+            <input type="text" id="vorlageBetreff">
+          </div>
+          <div class="form-group" style="margin-bottom:0.5rem">
+            <label>Text</label>
+            <textarea id="vorlageText" rows="11"></textarea>
+          </div>
+          <div style="font-size:0.8rem;color:var(--muted);line-height:1.6;margin-bottom:0.75rem">
+            Platzhalter: <strong>{{Vorname}}</strong> · <strong>{{Nachname}}</strong> · <strong>{{Link}}</strong>
+            · <strong>{{PIN}}</strong> · <strong>{{Datum}}</strong> – der Link erscheint in der Mail als anklickbarer Button.
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="speichereVorlage()">💾 Vorlage speichern</button>
+          <span id="vorlageStatus" style="font-size:0.82rem;color:var(--muted);margin-left:0.5rem"></span>
+        </div>
+      </div>
+      <div id="mailStatus" style="display:none;margin-top:0.85rem"></div>
+      <div style="margin-top:1rem;padding-top:0.85rem;border-top:1px solid var(--border);font-size:0.82rem;color:var(--muted);line-height:1.55">
+        Alternativ (für Mailmeteor): E-Mail, Vorname, Nachname, ID, PIN und fertigen Link in die Zwischenablage kopieren
+        und in Google Tabellen in Zelle A1 einfügen.<br>
+        <button class="btn btn-ghost btn-sm" id="btnVersandKopieren" style="margin-top:0.5rem" onclick="kopiereVersandListe()">📋 Versandliste kopieren</button>
+      </div>
+      <div id="versandStatus" style="display:none;margin-top:0.85rem"></div>
+    </div>
     <div class="btn-row">
       <span style="font-size:0.82rem;color:var(--muted)">Automatische Aktualisierung alle 15 Sek.</span>
       <button class="btn btn-danger" onclick="abstimmungSchliessen()">Abstimmung schließen ■</button>
@@ -485,6 +531,11 @@
 const SUPABASE_URL = 'https://lqfoybhgtlyvnbtuwggi.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_MJUP_gLZccCY-UUlF1p7oQ_JB1hta_g';
 const ADMIN_PASS   = 'kl@usdieter240405';
+
+// Direktversand per Google Apps Script (siehe mailversand_skript.gs)
+// MAIL_SKRIPT_URL: die "Web-App-URL" aus der Apps-Script-Bereitstellung (endet auf /exec)
+const MAIL_SKRIPT_URL = 'https://script.google.com/macros/s/AKfycbxD5dtkOfMIAK8yhB5gklcfWEU9gp0ivgQMG_uZ__ypAWGo5tTagQwLkGmuW8h3KcET/exec';
+const MAIL_TOKEN      = 'dzen8OZQ3eSGzX94C-GugJLshQh_U6yw';   // muss mit TOKEN im Skript übereinstimmen
 
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -826,6 +877,8 @@ async function sitzungSpeichernUndOeffnen() {
 async function starteMonitor() {
   const pinEl = document.getElementById('monitorPinModus');
   if (pinEl) pinEl.textContent = currentSitzung.pin_erforderlich ? '🔒 Mit PIN' : '🔓 Ohne PIN';
+  ladeVersandListe();   // Versanddaten vorab laden (Safari braucht sie beim Tippen sofort)
+  initMailBereich();
   await aktualisiereMonitor();
 
   // Automatisch alle 15 Sekunden aktualisieren
@@ -853,6 +906,185 @@ async function aktualisiereMonitor() {
   const jetzt = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const zeitEl = document.getElementById('monitorZeit');
   if (zeitEl) zeitEl.textContent = `Zuletzt aktualisiert: ${jetzt}`;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – Versandliste für Mailmeteor (Zwischenablage → Google Tabellen)
+// ════════════════════════════════════════════════════════════════════════
+async function ladeVersandListe() {
+  window._versandListe = null;
+  const { data, error } = await sb
+    .from('v_anwesend')
+    .select('mitglied_id, mitglieder(id, vorname, nachname, email, pin)')
+    .eq('sitzung_id', currentSitzung.id);
+  if (error) { console.error('Versandliste:', error.message); return; }
+  window._versandListe = (data || []).map(r => r.mitglieder).filter(Boolean)
+    .sort((a, b) => a.nachname.localeCompare(b.nachname, 'de'));
+}
+
+function versandText(liste) {
+  const basis = location.origin + location.pathname;
+  const sauber = v => String(v ?? '').replace(/[\t\r\n]+/g, ' ').trim();
+  const zeilen = liste.map(m => {
+    const link = `${basis}?mitglied&id=${encodeURIComponent(m.id)}&pin=${encodeURIComponent(m.pin || '')}`;
+    return [m.email, m.vorname, m.nachname, m.id, m.pin, link].map(sauber).join('\t');
+  });
+  return [['E-Mail', 'Vorname', 'Nachname', 'ID', 'PIN', 'Link'].join('\t'), ...zeilen].join('\n');
+}
+
+function kopiereVersandListe() {
+  const st    = document.getElementById('versandStatus');
+  const liste = window._versandListe;
+  st.style.display = 'block';
+
+  if (!liste || !liste.length) {
+    st.className = 'alert alert-warn';
+    st.textContent = '⏳ Die Liste wird noch geladen – bitte in einem Moment noch einmal tippen.';
+    ladeVersandListe();
+    return;
+  }
+
+  const text = versandText(liste);
+  const ohneMail = liste.filter(m => !m.email).map(m => `${m.vorname} ${m.nachname}`);
+  const ohnePin  = currentSitzung.pin_erforderlich
+    ? liste.filter(m => !m.pin).map(m => `${m.vorname} ${m.nachname}`) : [];
+
+  const fertig = () => {
+    st.className = 'alert alert-ok';
+    st.innerHTML = `✓ <strong>${liste.length} Mitglieder</strong> kopiert (mit Kopfzeile). ` +
+      `Jetzt in Google Tabellen Zelle A1 anklicken und einfügen.` +
+      (ohneMail.length ? `<br>⚠️ Ohne E-Mail-Adresse: <strong>${ohneMail.join(', ')}</strong> – bitte separat informieren.` : '') +
+      (ohnePin.length  ? `<br>⚠️ Ohne PIN: <strong>${ohnePin.join(', ')}</strong> – Link funktioniert nicht.` : '');
+  };
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(fertig).catch(() => kopierFallback(text, fertig));
+  } else {
+    kopierFallback(text, fertig);
+  }
+}
+
+function kopierFallback(text, fertig) {
+  // Älterer Weg über ein unsichtbares Textfeld
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;font-size:16px';
+  document.body.appendChild(ta);
+  ta.select();
+  ta.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  if (ok) { fertig(); return; }
+
+  // Letzter Ausweg: Text sichtbar anzeigen zum manuellen Markieren & Kopieren
+  const st = document.getElementById('versandStatus');
+  st.className = 'alert alert-warn';
+  st.innerHTML = 'Automatisches Kopieren war nicht möglich. Bitte den Text unten markieren und kopieren:' +
+    '<textarea readonly style="width:100%;height:9rem;margin-top:0.5rem;font-size:0.75rem;font-family:monospace"></textarea>';
+  const sichtbar = st.querySelector('textarea');
+  sichtbar.value = text;
+  sichtbar.focus();
+  sichtbar.select();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – Direktversand per Mail (Google Apps Script)
+// ════════════════════════════════════════════════════════════════════════
+function initMailBereich() {
+  const eingerichtet = !!MAIL_SKRIPT_URL;
+  document.getElementById('mailNichtEingerichtet').style.display = eingerichtet ? 'none' : 'block';
+  document.getElementById('mailBereich').style.display = eingerichtet ? 'block' : 'none';
+  document.getElementById('mailStatus').style.display = 'none';
+  if (eingerichtet) ladeVorlage();
+}
+
+async function ladeVorlage() {
+  const { data, error } = await sb.from('mailvorlagen')
+    .select('betreff, text').eq('app', 'vorsingen').maybeSingle();
+  if (error) { console.error('Vorlage:', error.message); return; }
+  if (data) {
+    document.getElementById('vorlageBetreff').value = data.betreff;
+    document.getElementById('vorlageText').value    = data.text;
+  }
+}
+
+function toggleVorlage() {
+  const el = document.getElementById('vorlageEditor');
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function speichereVorlage() {
+  const betreff = document.getElementById('vorlageBetreff').value.trim();
+  const text    = document.getElementById('vorlageText').value.trim();
+  const st      = document.getElementById('vorlageStatus');
+  if (!betreff || !text) { st.textContent = 'Betreff und Text dürfen nicht leer sein.'; return; }
+  if (!text.includes('{{Link}}') &&
+      !confirm('Im Text fehlt der Platzhalter {{Link}} – die Mitglieder bekämen dann keinen Abstimmungslink. Trotzdem speichern?')) return;
+  const { error } = await sb.from('mailvorlagen')
+    .upsert({ app: 'vorsingen', betreff, text, geaendert_am: new Date().toISOString() });
+  st.textContent = error ? '❌ ' + error.message : '✓ Gespeichert';
+  if (!error) setTimeout(() => { st.textContent = ''; }, 3000);
+}
+
+function mailVersandMerken() {
+  try { localStorage.setItem('rkc_mail_' + currentSitzung.id, new Date().toISOString()); } catch (e) {}
+}
+function mailVersandZeit() {
+  try { return localStorage.getItem('rkc_mail_' + currentSitzung.id); } catch (e) { return null; }
+}
+
+async function sendeMails(nurOffene) {
+  const st = document.getElementById('mailStatus');
+  const liste = window._versandListe || [];
+
+  let frage;
+  if (nurOffene) {
+    frage = 'Erinnerungsmail an alle Anwesenden senden, die noch NICHT abgestimmt haben?';
+  } else {
+    const ohneMail = liste.filter(m => !m.email).length;
+    frage = `Mail mit persönlichem Abstimmungslink an ${liste.length - ohneMail} Mitglieder senden?`;
+    const frueher = mailVersandZeit();
+    if (frueher) {
+      const uhr = new Date(frueher).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      frage = `Achtung: Für diese Sitzung wurden bereits um ${uhr} Uhr Mails verschickt.\n\n` + frage + ' (erneut)';
+    }
+  }
+  if (!confirm(frage)) return;
+
+  const btns = [document.getElementById('btnMailAlle'), document.getElementById('btnMailOffene')];
+  btns.forEach(b => b.disabled = true);
+  st.style.display = 'block';
+  st.className = 'alert alert-info';
+  st.textContent = '⏳ Mails werden verschickt – das kann einen Moment dauern…';
+
+  try {
+    const res = await fetch(MAIL_SKRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // kein Preflight nötig
+      body: JSON.stringify({ token: MAIL_TOKEN, aktion: 'senden', sitzungId: currentSitzung.id, nurOffene })
+    });
+    const r = await res.json();
+    if (!r.ok) throw new Error(r.fehler || 'Unbekannter Fehler');
+
+    if (!nurOffene) mailVersandMerken();
+    const liste2 = a => a.map(x => `<strong>${x}</strong>`).join(', ');
+    st.className = r.fehler?.length ? 'alert alert-warn' : 'alert alert-ok';
+    st.innerHTML =
+      (r.gesendet.length
+        ? `✓ <strong>${r.gesendet.length}</strong> Mail${r.gesendet.length !== 1 ? 's' : ''} verschickt.`
+        : 'Es gab niemanden, an den eine Mail zu schicken war.') +
+      (r.ohneMail?.length ? `<br>⚠️ Ohne E-Mail-Adresse: ${liste2(r.ohneMail)} – bitte separat informieren.` : '') +
+      (r.fehler?.length   ? `<br>❌ Fehlgeschlagen: ${liste2(r.fehler)}` : '') +
+      `<br><small>Heute noch möglich: ${r.rest} Mails.</small>`;
+  } catch (err) {
+    st.className = 'alert alert-error';
+    st.innerHTML = '❌ Versand fehlgeschlagen: ' + err.message +
+      '<br><small>Notfalls unten die Versandliste kopieren und wie bisher über Mailmeteor senden.</small>';
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
 }
 
 async function abstimmungSchliessen() {
@@ -1200,7 +1432,7 @@ async function zeigeErgebnis() {
     else if (besteht(effGast, sgEffG)){ ergebnis = 'Gast';   effFuerRegel4 = effGast; }
     else                              { ergebnis = 'Nein';   effFuerRegel4 = 0;       }
 
-    const pct = (n, d) => d > 0 ? Math.round(n/d*100) + '\u202f%' : '–';
+    const pct = (n, d) => d > 0 ? Math.round(n/d*100) + ' %' : '–';
     return {
       kandidat: k, ergebnis, effFuerRegel4,
       roh: r, nGesamt, nSG,
@@ -1231,7 +1463,7 @@ function anwendeRegel4(ergebnisse) {
 const ESTIL = { 'Vakanz':['#2a6e3f','★'],'Gast':['#b8860b','✓'],'Nein':['#9c2020','✗'] };
 function ergebnisTag(e) {
   const [bg, icon] = ESTIL[e.ergebnis];
-  const label = e.regel4Zurueck ? `${e.ergebnis} (Regel\u00a04)` : e.ergebnis;
+  const label = e.regel4Zurueck ? `${e.ergebnis} (Regel 4)` : e.ergebnis;
   return `<span style="background:${e.regel4Zurueck?'#888':bg};color:white;padding:0.2rem 0.55rem;border-radius:3px;font-size:0.78rem;font-weight:700">${icon} ${label}</span>`;
 }
 
@@ -1246,8 +1478,8 @@ function renderErgebnis(ergebnisse, total) {
 
   document.getElementById('ergebnisMeta').innerHTML =
     `Anwesende Mitglieder: <strong>${total}</strong> &nbsp;·&nbsp; Kandidaten: <strong>${kandidaten.length}</strong>` +
-    (istAdmin ? `<br><small>Rohstimmen (Summe je Zeile = ${total}). Prozente in der entscheidenden Spalte (Ges. / SG). 
-     Zur Leitung werden nur Empfehlungen mitgeteilt (Regel\u00a05).</small>` : '');
+    (istAdmin ? `<br><small>Rohstimmen (Summe je Zeile = ${total}). Prozente in der entscheidenden Spalte (Ges. / SG).
+     Zur Leitung werden nur Empfehlungen mitgeteilt (Regel 5).</small>` : '');
 
   if (istAdmin) {
     const rows = ergebnisse.map(e => {
@@ -1329,7 +1561,7 @@ function exportCSV() {
       empf, `"${text.replace(/"/g, '""')}"`].join(';');
   });
 
-  const csv  = '\uFEFF' + [header.join(';'), ...rows].join('\r\n');
+  const csv  = '﻿' + [header.join(';'), ...rows].join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -1430,29 +1662,29 @@ function bestehtWeg(eff, sgEff, nGesamt, nSG) {
 
 function generiereText(e) {
   const { roh: r, eff, sg, nGesamt, nSG, ergebnis, kandidat: k } = e;
-  const p = (n, d) => d > 0 ? Math.round(n/d*100)+'\u202f%' : '–';
+  const p = (n, d) => d > 0 ? Math.round(n/d*100)+' %' : '–';
   const sg_label = `${nSG} aus dem ${k.stimmgruppe}`;
 
   if (ergebnis === 'Nein') {
     return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) stimmten ` +
       `insgesamt ${r.vV}× Vakanz, ${r.vG}× Gast und ${r.vN}× Nein. ` +
       `Davon aus dem ${k.stimmgruppe}: ${sg.vakanz}× Vakanz, ${sg.gastRoh}× Gast, ${sg.nein}× Nein. ` +
-      `Auch unter Berücksichtigung der Stimmenkaskade (Regel\u00a06) wurde für keine ` +
+      `Auch unter Berücksichtigung der Stimmenkaskade (Regel 6) wurde für keine ` +
       `Kategorie eine der erforderlichen Mehrheiten erreicht. <strong>Empfehlung: Abgelehnt.</strong>`;
   }
   let einl = '';
   if (ergebnis === 'Gast')
-    einl = `Für eine Vakanz-Einstellung reichte es nicht aus (${p(r.vV,nGesamt)}\u202fges. / ${p(sg.vakanz,nSG)}\u202fSG). `;
+    einl = `Für eine Vakanz-Einstellung reichte es nicht aus (${p(r.vV,nGesamt)} ges. / ${p(sg.vakanz,nSG)} SG). `;
 
   const effN = ergebnis==='Vakanz' ? r.vV     : eff.gast;
   const sgE  = ergebnis==='Vakanz' ? sg.vakanz : sg.gast;
-  const katL = ergebnis==='Vakanz' ? 'Vakanz' : 'Gast (Vakanz\u202f+\u202fGast kaskadiert)';
+  const katL = ergebnis==='Vakanz' ? 'Vakanz' : 'Gast (Vakanz + Gast kaskadiert)';
   const weg   = bestehtWeg(effN, sgE, nGesamt, nSG);
   const wegT  = weg==='A'
-    ? `Die 2/3-Mehrheit (${p(effN,nGesamt)}\u202fges.) und das 51\u202f%-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg\u202fA, Regel\u202f2).`
-    : `Die einfache Mehrheit (${p(effN,nGesamt)}\u202fges.) und das ¾-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg\u202fB, Regel\u202f3).`;
+    ? `Die 2/3-Mehrheit (${p(effN,nGesamt)} ges.) und das 51 %-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg A, Regel 2).`
+    : `Die einfache Mehrheit (${p(effN,nGesamt)} ges.) und das ¾-Quorum der SG (${p(sgE,nSG)}) wurden erfüllt (Weg B, Regel 3).`;
   const r4 = e.regel4Zurueck
-    ? ` Ein anderer Kandidat derselben Stimmgruppe erreichte dieselbe Kategorie mit mehr Stimmen — ${k.name} wird zurückgestellt (Regel\u00a04).`
+    ? ` Ein anderer Kandidat derselben Stimmgruppe erreichte dieselbe Kategorie mit mehr Stimmen — ${k.name} wird zurückgestellt (Regel 4).`
     : '';
 
   return `Von ${nGesamt} anwesenden Mitgliedern (davon ${sg_label}) entfielen ${effN} Stimmen auf ${katL}. ` +
