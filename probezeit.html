@@ -428,7 +428,7 @@
       </div>
       <div class="alert alert-error" id="pinFehler"        style="display:none">Falsche PIN. Bitte erneut versuchen.</div>
       <div class="alert alert-warn"  id="pinNichtGesetzt"  style="display:none">Keine PIN hinterlegt – bitte wende dich an die Leitung.</div>
-      <div class="alert alert-warn"  id="bereitsAbgestimmt"style="display:none">Du hast bereits abgestimmt. Bitte warte auf das Ergebnis.</div>
+      <div class="alert alert-warn"  id="bereitsAbgestimmt"style="display:none">Du hast bereits abgestimmt.</div>
     </div>
     <div class="btn-row">
       <button class="btn btn-ghost" onclick="showScreen('s-start')">← Zurück</button>
@@ -473,9 +473,9 @@
   <div class="screen" id="s-member-warten">
     <div class="card">
       <div class="warten-wrap">
-        <div class="icon">⏳</div>
+        <div class="icon" style="animation:none;color:var(--ja)">✓</div>
         <h2>Danke!</h2>
-        <p>Deine Stimme wurde anonym gespeichert.<br>Warte bitte, bis die Leitung die Abstimmung schließt.</p>
+        <p>Deine Stimme wurde anonym gespeichert.</p>
       </div>
     </div>
   </div>
@@ -1296,8 +1296,8 @@ async function zeigeErgebnis() {
        </div>`
     : `<div class="ergebnis-box abgelehnt">
         <div class="e-icon">—</div>
-        <div class="e-titel">Probezeit wird nicht verlängert</div>
-        <div class="e-sub">Empfehlung: Beendigung des Dienstverhältnisses</div>
+        <div class="e-titel">${currentSitzung.kandidat_name} wird nicht übernommen</div>
+        <div class="e-sub">Empfehlung: keine Übernahme in das reguläre Dienstverhältnis</div>
        </div>`;
 
   // ── Erläuterungstext ───────────────────────────────────────────────
