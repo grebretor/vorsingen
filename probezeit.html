@@ -350,6 +350,10 @@
         &nbsp;
         <button class="btn btn-outline btn-sm" onclick="aktualisiereMonitor()">↻ Aktualisieren</button>
       </div>
+      <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+        <button class="btn btn-outline" id="btnZwischenstand" onclick="toggleZwischenstand()">📊 Zwischenstand anzeigen</button>
+        <div id="zwischenstand" style="display:none;margin-top:0.9rem"></div>
+      </div>
     </div>
     <!-- Direktversand der Abstimmungslinks -->
     <div class="card">
@@ -807,6 +811,113 @@ async function aktualisiereMonitor() {
     : `<strong style="color:var(--ja)">✓ Alle Mitglieder haben abgestimmt.</strong>`;
   const jetzt = new Date().toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
   document.getElementById('monitorZeit').textContent = `Zuletzt aktualisiert: ${jetzt}`;
+
+  window._offeneMitglieder = offen;
+  if (document.getElementById('zwischenstand').style.display !== 'none') await zeigeZwischenstand();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ADMIN – ZWISCHENSTAND (nur Leitung, während die Abstimmung läuft)
+// ════════════════════════════════════════════════════════════════════════
+// Dieselbe Regel wie in zeigeErgebnis(): Nenner sind immer alle Stimmberechtigten,
+// fehlende Stimmen zählen also wie "kein Ja".
+function regelErfuellt(ja, jaSG, nGesamt, nSG) {
+  if (nGesamt === 0) return false;
+  const rG  = ja / nGesamt;
+  const rSG = nSG > 0 ? jaSG / nSG : 0;
+  return (rG >= 2/3 && rSG >= 0.51) || (rG > 0.5 && rSG >= 0.75);
+}
+
+async function toggleZwischenstand() {
+  const el  = document.getElementById('zwischenstand');
+  const btn = document.getElementById('btnZwischenstand');
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    btn.textContent = '📊 Zwischenstand ausblenden';
+    await zeigeZwischenstand();
+  } else {
+    el.style.display = 'none';
+    btn.textContent = '📊 Zwischenstand anzeigen';
+  }
+}
+
+async function zeigeZwischenstand() {
+  const el = document.getElementById('zwischenstand');
+  const { data: stimmen, error } = await sb
+    .from('p_stimmen').select('kategorie, stimmgruppe')
+    .eq('sitzung_id', currentSitzung.id);
+  if (error) { el.innerHTML = `<div class="alert alert-error">❌ ${error.message}</div>`; return; }
+
+  const sgK     = currentSitzung.kandidat_sg;
+  const nGesamt = anwesendeListe.length;
+  const nSG     = anwesendeListe.filter(m => normStimme(m.stimme) === sgK).length;
+  const offen   = window._offeneMitglieder || [];
+  const offenSG = offen.filter(m => normStimme(m.stimme) === sgK).length;
+  const offenAndere = offen.length - offenSG;
+
+  let jaGes = 0, neinGes = 0, jaSG = 0, neinSG = 0;
+  (stimmen || []).forEach(s => {
+    const inSG = normStimme(s.stimmgruppe) === sgK;
+    if (s.kategorie === 'Ja') { jaGes++;   if (inSG) jaSG++;   }
+    else                      { neinGes++; if (inSG) neinSG++; }
+  });
+
+  const stehtJa   = regelErfuellt(jaGes, jaSG, nGesamt, nSG);                             // auch wenn alle Offenen Nein sagen
+  const moeglich  = regelErfuellt(jaGes + offen.length, jaSG + offenSG, nGesamt, nSG);   // wenn alle Offenen Ja sagen
+  const name      = currentSitzung.kandidat_name;
+  const n         = offen.length;
+  const nText     = n === 1 ? 'die noch ausstehende Stimme' : `alle ${n} noch ausstehenden Stimmen`;
+
+  let urteil;
+  if (n === 0) {
+    urteil = `<div class="alert alert-info" style="margin-bottom:0.75rem">
+      Alle Stimmen sind abgegeben – die Abstimmung kann geschlossen werden.</div>`;
+  } else if (stehtJa) {
+    urteil = `<div class="alert alert-ok" style="margin-bottom:0.75rem">
+      <strong>✓ Das Ergebnis steht bereits fest: Übernahme von ${name}.</strong><br>
+      Auch wenn ${nText} mit Nein abgegeben würden, bliebe die erforderliche Mehrheit erreicht.
+      Die Abstimmung kann geschlossen werden.</div>`;
+  } else if (!moeglich) {
+    urteil = `<div class="alert alert-error" style="margin-bottom:0.75rem">
+      <strong>Das Ergebnis steht bereits fest: keine Übernahme von ${name}.</strong><br>
+      Selbst wenn ${nText} mit Ja abgegeben würden, wäre die erforderliche Mehrheit nicht mehr erreichbar.
+      Die Abstimmung kann geschlossen werden.</div>`;
+  } else {
+    // Kleinste Zahl weiterer Ja-Stimmen, mit der eine Übernahme noch erreicht würde
+    let minJa = Infinity, minJaSG = Infinity;
+    for (let b = 0; b <= offenSG; b++) {
+      for (let a = 0; a <= offenAndere; a++) {
+        if (regelErfuellt(jaGes + a + b, jaSG + b, nGesamt, nSG)) {
+          minJa = Math.min(minJa, a + b);
+          minJaSG = Math.min(minJaSG, b);
+          break;
+        }
+      }
+    }
+    const jaText = minJa === n
+      ? (n === 1 ? 'Eine Übernahme ist nur noch möglich, wenn die ausstehende Stimme ein Ja ist.'
+                 : `Eine Übernahme ist nur noch möglich, wenn alle ${n} ausstehenden Stimmen Ja lauten.`)
+      : `Für eine Übernahme werden noch mindestens <strong>${minJa}</strong> weitere Ja-Stimme${minJa !== 1 ? 'n' : ''}
+         von ${n} ausstehenden benötigt` +
+        (minJaSG > 0 ? `, davon mindestens <strong>${minJaSG}</strong> aus dem ${sgK}.` : '.');
+    urteil = `<div class="alert alert-warn" style="margin-bottom:0.75rem">
+      <strong>Das Ergebnis ist noch offen.</strong> Die ausstehenden Stimmen können es noch ändern.<br>
+      ${jaText}</div>`;
+  }
+
+  el.innerHTML = urteil + `
+    <div style="font-size:0.88rem;line-height:1.7">
+      Bisher: <strong style="color:var(--ja)">${jaGes} Ja</strong> ·
+      <strong style="color:var(--nein)">${neinGes} Nein</strong> ·
+      ${n} ausstehend <span style="color:var(--muted)">(von ${nGesamt})</span><br>
+      davon ${sgK}: <strong style="color:var(--ja)">${jaSG} Ja</strong> ·
+      <strong style="color:var(--nein)">${neinSG} Nein</strong> ·
+      ${offenSG} ausstehend <span style="color:var(--muted)">(von ${nSG})</span>
+    </div>
+    <div style="font-size:0.76rem;color:var(--muted);margin-top:0.6rem;line-height:1.5">
+      Nur für die Leitung. Bitte zurückhaltend nutzen: Wer den Zwischenstand zwischen zwei einzelnen
+      Stimmabgaben vergleicht, kann Rückschlüsse auf das Votum einzelner Mitglieder ziehen.
+    </div>`;
 }
 
 // ════════════════════════════════════════════════════════════════════════
